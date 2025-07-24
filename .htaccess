@@ -1,0 +1,17 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine on
+    RewriteBase /alpha/
+
+    # 1. Gestione root: inoltra al front controller
+    RewriteRule ^$ public/index.php [L]
+
+    # 2. Rimuovi trailing slash se non è una cartella
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_URI} (.+)/$
+    RewriteRule ^ %1 [L,R=301]
+
+    # 3. Tutte le altre richieste → front controller
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ public/index.php [L]
+</IfModule>
