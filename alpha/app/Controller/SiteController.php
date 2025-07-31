@@ -13,6 +13,12 @@ class SiteController
         render('index', compact('lang'));
     }
 
+    public function dbGuide(): void
+    {
+        $lang = current_lang();
+        render('db_guide', compact('lang'));
+    }
+
     public function admin(?string $page = null): void
     {
         $lang = current_lang();

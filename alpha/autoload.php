@@ -1,5 +1,9 @@
 <?php
 
+define('VIEW_CACHE_ENABLED', true); // cache on / off
+define('VIEW_CACHE_PATH', __DIR__ . '/storage/cache/views'); // cache folder    
+define('VIEW_CACHE_LIFETIME', 3600); // 1 hour
+
 function dd(...$vars)
 {
     echo '<pre style="background-color: #1a1a1a; color: #f1f1f1; padding: 15px; border-radius: 5px; margin: 10px;">';
@@ -60,10 +64,10 @@ function loadEnv(string $path): void
     }
 }
 
-// subito dopo l’autoloader, invoca il caricamento del .env
+// env
 loadEnv(__DIR__ . '/.env');
 
-// Utility: Config
+// user config
 function config($key = null) {
     static $config = null;
     if ($config === null) {
@@ -76,19 +80,79 @@ function config($key = null) {
     return $config[$key] ?? null;
 }
 
+function disableCache()
+{
+    $GLOBALS['view_cache'] = true;
+}
 
-// Utility: Render view
+function minify_html(string $buffer): string
+{
+    $search = [
+        // spazi
+        '/>\s+</s',
+        '/(\s)+/s',
+        // commenti
+        '//'
+    ];
+    $replace = [
+        '><',
+        '\\1',
+        ''
+    ];
+
+    return preg_replace($search, $replace, $buffer);
+}
+
+// render view
 function render($view, $params = []) {
+    if (VIEW_CACHE_ENABLED) {
+        // key view cache
+        $cacheKey = md5($view . serialize($params));
+        $cacheFile = VIEW_CACHE_PATH . '/' . $cacheKey . '.html';
+
+        // cache in cache
+        if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < VIEW_CACHE_LIFETIME) {
+            echo file_get_contents($cacheFile);
+            return; // open view
+        }
+    }
+
+    // generate view
+    ob_start();
+
     extract($params);
     $theme = THEME_DIR;
     $viewPath = __DIR__ . "/resources/views/{$theme}/{$view}.php";
+    
     if (!file_exists($viewPath)) {
-        throw new RuntimeException("View non trovata: $viewPath");
+        $baseViewPath = __DIR__ . "/resources/views/{$view}.php";
+        if (!file_exists($baseViewPath)) {
+            ob_end_clean();
+            throw new RuntimeException("View non trovata: $viewPath");
+        }
+        include $baseViewPath;
+    } else {
+        include $viewPath;
     }
-    include $viewPath;
+    
+    $content = ob_get_clean(); // get content
+    $minifiedContent = minify_html($content); // serialize html
+
+    // save cache if not disabled
+    if (VIEW_CACHE_ENABLED && empty($GLOBALS['view_cache'])) {
+        if (!is_dir(VIEW_CACHE_PATH)) {
+            mkdir(VIEW_CACHE_PATH, 0775, true);
+        }
+        file_put_contents($cacheFile, $minifiedContent);
+    }
+    
+    // unset cache
+    unset($GLOBALS['view_cache']);
+
+    echo $minifiedContent; // show html
 }
 
-// Utility: Error handling
+// errors
 function abort($code = 404) {
     http_response_code($code);
     if ($code === 404) {
@@ -99,12 +163,12 @@ function abort($code = 404) {
     exit;
 }
 
-// Utility: Escaping per le view
+// eq for views
 function eq($string) {
-    return htmlspecialchars($string, ENT_QUOTES, 'UTF-8');
+    return htmlspecialchars((string) $string, ENT_QUOTES, 'UTF-8');
 }
 
-// Utility: Includi partial del tema attivo
+// partials
 function partial($name) {
     $theme = THEME_DIR;
     include BASE_PATH . "/resources/views/{$theme}/partials/{$name}.php";
@@ -113,4 +177,12 @@ function partial($name) {
 function partialAdmin($name) {
     $theme = THEME_DIR;
     include BASE_PATH . "/resources/views/{$theme}/admin-partials/{$name}.php";
+}
+
+function csrf_field()
+{
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    echo '<input type="hidden" name="csrf_token" value="' . $_SESSION['csrf_token'] . '">';
 }

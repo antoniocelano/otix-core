@@ -1,0 +1,401 @@
+<?php
+
+define('BASE_PATH', __DIR__);
+
+// Requisiti di base
+require BASE_PATH . '/autoload.php';
+use App\Core\Database;
+
+// --- Caricamento Ambiente ---
+try {
+    $domains = require BASE_PATH . '/sources/domains.php';
+    $selected = $domains['_selected'] ?? '';
+    if ($selected && isset($domains[$selected])) {
+        $envFile = $domains[$selected]['env'];
+        loadEnv(BASE_PATH . '/' . ltrim($envFile, '/'));
+    } else {
+        loadEnv(BASE_PATH . '/.env');
+    }
+} catch (\Exception $e) {
+    echo "\n\033[31mErrore: Impossibile caricare la configurazione dell'ambiente. Assicurati che 'sources/domains.php' e i file .env siano corretti.\033[0m\n";
+    exit(1);
+}
+
+
+class Artisan
+{
+    private $db;
+    private $migrationsPath;
+
+    // --- Colori per l'output ---
+    private const COLOR_SUCCESS = "\033[32m";
+    private const COLOR_WARNING = "\033[33m";
+    private const COLOR_ERROR   = "\033[31m";
+    private const COLOR_INFO    = "\033[36m";
+    private const COLOR_RESET   = "\033[0m";
+
+    public function __construct()
+    {
+        try {
+            $this->db = new Database();
+            $this->migrationsPath = BASE_PATH . '/database/migrations';
+            if (!is_dir($this->migrationsPath)) {
+                mkdir($this->migrationsPath, 0775, true);
+            }
+        } catch (\PDOException $e) {
+            $this->error("Errore di connessione al database: " . $e->getMessage());
+            exit(1);
+        }
+    }
+
+    /**
+     * Esegue il comando richiesto.
+     */
+    public function run(array $argv)
+    {
+        if (count($argv) < 2) {
+            $this->showHelp();
+            return;
+        }
+
+        $command = $argv[1];
+        $argument = $argv[2] ?? null;
+
+        switch ($command) {
+            case 'make:migration':
+                $this->makeMigration($argument);
+                break;
+            case 'migrate':
+                $this->migrate();
+                break;
+            case 'rollback':
+                $this->rollback();
+                break;
+            case 'status':
+                $this->status();
+                break;
+            case 'cache:clear':
+                $this->cleanCache();
+                break;
+            default:
+                $this->error("Comando non riconosciuto: {$command}");
+                $this->showHelp();
+                break;
+        }
+    }
+
+    /**
+     * Mostra l'elenco dei comandi disponibili.
+     */
+    private function showHelp()
+    {
+        echo self::COLOR_WARNING . "\nUso:\n" . self::COLOR_RESET;
+        echo "  php do.php <comando> [argomento]\n\n";
+        echo self::COLOR_WARNING . "Comandi disponibili:\n" . self::COLOR_RESET;
+        echo "  " . self::COLOR_SUCCESS . "make:migration" . self::COLOR_RESET . " <NomeMigrazione>  Crea un nuovo file di migrazione.\n";
+        echo "  " . self::COLOR_SUCCESS . "migrate" . self::COLOR_RESET . "                        Esegue le migrazioni pendenti.\n";
+        echo "  " . self::COLOR_SUCCESS . "rollback" . self::COLOR_RESET . "                       Annulla l'ultimo batch di migrazioni.\n";
+        echo "  " . self::COLOR_SUCCESS . "status" . self::COLOR_RESET . "                         Mostra lo stato delle migrazioni.\n\n";
+    }
+    
+    /**
+     * Comando: Crea un nuovo file di migrazione.
+     */
+    public function makeMigration(?string $name)
+    {
+        if (!$name) {
+            $this->error("È richiesto il nome della migrazione.\n  Uso: php do.php make:migration <NomeMigrazione>");
+            return;
+        }
+        if (!preg_match('/^[a-zA-Z0-9_]+$/', $name)) {
+            $this->error("Il nome della migrazione può contenere solo lettere, numeri e underscore.");
+            return;
+        }
+
+        $timestamp = date('Y_m_d_His');
+        $fileName = "{$timestamp}_{$name}.php";
+        $className = 'Migration_' . $timestamp . '_' . $name;
+        $filePath = $this->migrationsPath . '/' . $fileName;
+
+        $stub = $this->getMigrationStub($className);
+
+        if (file_put_contents($filePath, $stub)) {
+            $this->info("Migrazione creata con successo:");
+            echo "  {$fileName}\n";
+        } else {
+            $this->error("Errore durante la creazione del file di migrazione.");
+        }
+    }
+    
+    /**
+     * Comando: Esegue le migrazioni pendenti.
+     */
+    public function migrate()
+    {
+        $this->ensureMigrationsTableExists();
+        $pending = $this->getPendingMigrations();
+
+        if (empty($pending)) {
+            $this->info("Nessuna nuova migrazione da eseguire. Il database è aggiornato.");
+            return;
+        }
+
+        $batch = $this->getLastBatchNumber() + 1;
+        foreach ($pending as $file) {
+            $this->runUp($file, $batch);
+        }
+
+        $this->info("\nMigrazioni eseguite con successo.");
+    }
+
+    /**
+     * Comando: Annulla l'ultimo batch di migrazioni.
+     */
+    public function rollback()
+    {
+        $this->ensureMigrationsTableExists();
+        $lastBatch = $this->getLastBatchNumber();
+
+        if ($lastBatch === 0) {
+            $this->info("Nessuna migrazione da annullare.");
+            return;
+        }
+
+        $migrationsToRollback = $this->db->select('migrations', ['batch' => $lastBatch], ['migration'], [], ['migration' => 'DESC']);
+
+        if (empty($migrationsToRollback)) {
+            $this->info("Nessuna migrazione trovata nel batch #{$lastBatch}.");
+            return;
+        }
+
+        foreach ($migrationsToRollback as $migration) {
+            $this->runDown($migration['migration']);
+        }
+
+        $this->info("\nRollback completato con successo.");
+    }
+
+    /**
+     * Comando: Mostra lo stato di tutte le migrazioni.
+     */
+    public function status()
+    {
+        $this->ensureMigrationsTableExists();
+        $executed = $this->getExecutedMigrations();
+        $allFiles = $this->getAllMigrationFiles();
+
+        echo self::COLOR_WARNING . "\nStato delle Migrazioni\n-----------------------\n" . self::COLOR_RESET;
+
+        if (empty($allFiles)) {
+            $this->info("Nessun file di migrazione trovato.");
+            return;
+        }
+
+        foreach ($allFiles as $file) {
+            $fileName = basename($file);
+            if (in_array($fileName, $executed)) {
+                echo "[ " . self::COLOR_SUCCESS . "✓ Eseguita" . self::COLOR_RESET . " ] {$fileName}\n";
+            } else {
+                echo "[ " . self::COLOR_WARNING . "✗ Pendente" . self::COLOR_RESET . " ] {$fileName}\n";
+            }
+        }
+        echo "\n";
+    }
+
+    /**
+     * Comando: Pulisci la cache delle viste.
+     * Rimuove tutti i file HTML generati.
+     */
+    public function cleanCache()
+    {
+        $cachePath = BASE_PATH . '/storage/cache/views';
+        
+        if (!is_dir($cachePath)) {
+            $this->info("La cartella della cache non esiste. Nulla da pulire.");
+            return;
+        }
+
+        $files = glob($cachePath . '/*.html');
+        
+        if (empty($files)) {
+            $this->info("La cache delle viste è già vuota.");
+            return;
+        }
+
+        $count = 0;
+        foreach ($files as $file) {
+            if (is_file($file)) {
+                unlink($file);
+                $count++;
+            }
+        }
+
+        $this->info("Cache delle viste pulita con successo. Rimossi {$count} file.");
+    }
+
+    /**
+     * --------------------------------------------------------------------------
+     * Inzio funzioni core
+     * --------------------------------------------------------------------------
+     */
+
+
+    /**
+     * Assicura che la tabella delle migrazioni esista nel database.
+     */
+    private function ensureMigrationsTableExists()
+    {
+        try {
+            $this->db->query("CREATE TABLE IF NOT EXISTS migrations (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                migration VARCHAR(255) NOT NULL,
+                batch INT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )");
+        } catch (\PDOException $e) {
+            $this->error("Impossibile creare la tabella delle migrazioni: " . $e->getMessage());
+            exit(1);
+        }
+    }
+
+    private function runUp($file, $batch)
+    {
+        $fileName = basename($file);
+        $this->write("Esecuzione in corso:", $fileName);
+        
+        try {
+            $migration = $this->instantiateMigration($file);
+            $migration->up();
+            $this->logMigration($fileName, $batch);
+            $this->write(self::COLOR_SUCCESS . "Eseguita" . self::COLOR_RESET . "           :", $fileName, true);
+        } catch (\Exception $e) {
+            $this->error("\n\n!! ERRORE DURANTE L'ESECUZIONE DI {$fileName} !!\nMessaggio: " . $e->getMessage() . "\n");
+            exit(1);
+        }
+    }
+
+    private function runDown($fileName)
+    {
+        $this->write("Annullamento in corso:", $fileName);
+
+        try {
+            $file = $this->migrationsPath . '/' . $fileName;
+            if (!file_exists($file)) {
+                throw new \Exception("File di migrazione non trovato. Rimuovo la registrazione dal DB.");
+            }
+            $migration = $this->instantiateMigration($file);
+            $migration->down();
+            $this->db->delete('migrations', ['migration' => $fileName]);
+            $this->write(self::COLOR_SUCCESS . "Annullata" . self::COLOR_RESET . "            :", $fileName, true);
+        } catch (\Exception $e) {
+            if (strpos($e->getMessage(), "File di migrazione non trovato") !== false) {
+                 $this->db->delete('migrations', ['migration' => $fileName]);
+                 $this->warning("\n{$e->getMessage()}");
+            } else {
+                $this->error("\n\n!! ERRORE DURANTE IL ROLLBACK DI {$fileName} !!\nMessaggio: " . $e->getMessage() . "\n");
+                exit(1);
+            }
+        }
+    }
+    
+    private function instantiateMigration(string $file): object
+    {
+        require_once $file;
+        $fileName = basename($file);
+        $className = 'Migration_' . str_replace('.php', '', $fileName);
+
+        if (!class_exists($className)) {
+            throw new \Exception("Classe '{$className}' non trovata nel file '{$fileName}'.");
+        }
+        return new $className();
+    }
+
+    private function getMigrationStub(string $className): string
+    {
+        return <<<EOT
+<?php
+
+use App\Core\Database;
+
+class {$className}
+{
+    private \$db;
+
+    public function __construct()
+    {
+        \$this->db = new Database();
+    }
+
+    /**
+     * Esegue la migrazione.
+     * Applica le modifiche allo schema del database.
+     */
+    public function up()
+    {
+        // Esempio: \$this->db->query("CREATE TABLE users (...)");
+    }
+
+    /**
+     * Annulla la migrazione.
+     * Rimuove le modifiche apportate dal metodo up().
+     */
+    public function down()
+    {
+        // Esempio: \$this->db->query("DROP TABLE IF EXISTS users");
+    }
+}
+EOT;
+    }
+
+    private function getPendingMigrations(): array
+    {
+        $executed = $this->getExecutedMigrations();
+        $allFiles = $this->getAllMigrationFiles();
+        return array_filter($allFiles, fn($file) => !in_array(basename($file), $executed));
+    }
+
+    private function getExecutedMigrations(): array
+    {
+        try {
+            $results = $this->db->select('migrations', [], ['migration']);
+            return array_column($results, 'migration');
+        } catch (\PDOException $e) {
+            // Se la tabella non esiste, non ci sono migrazioni eseguite
+            return [];
+        }
+    }
+
+    private function getAllMigrationFiles(): array
+    {
+        $files = glob($this->migrationsPath . '/*.php');
+        sort($files);
+        return $files;
+    }
+
+    private function logMigration(string $migration, int $batch): void
+    {
+        $this->db->insert('migrations', ['migration' => $migration, 'batch' => $batch]);
+    }
+
+    private function getLastBatchNumber(): int
+    {
+        try {
+            $result = $this->db->query("SELECT MAX(batch) as max_batch FROM migrations");
+            return (int)($result[0]['max_batch'] ?? 0);
+        } catch (\PDOException $e) {
+            return 0;
+        }
+    }
+
+    // --- Funzioni per l'Output ---
+    private function info(string $message): void    { echo self::COLOR_INFO    . $message . self::COLOR_RESET . "\n"; }
+    private function error(string $message): void   { echo self::COLOR_ERROR   . $message . self::COLOR_RESET . "\n"; }
+    private function warning(string $message): void { echo self::COLOR_WARNING . $message . self::COLOR_RESET . "\n"; }
+    private function write(string $status, string $message, bool $overwrite = false): void {
+        echo ($overwrite ? "\r" : "") . $status . " " . self::COLOR_RESET . $message . ($overwrite ? "\n" : "");
+    }
+}
+
+// --- Esecuzione ---
+$artisan = new Artisan();
+$artisan->run($argv);
