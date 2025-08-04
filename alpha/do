@@ -77,6 +77,9 @@ class Artisan
             case 'cache:clear':
                 $this->cleanCache();
                 break;
+            case 'make:user':
+                $this->makeUser($argv[2] ?? null, $argv[3] ?? null, $argv[4] ?? null);
+                break;
             default:
                 $this->error("Comando non riconosciuto: {$command}");
                 $this->showHelp();
@@ -96,6 +99,7 @@ class Artisan
         echo "  " . self::COLOR_SUCCESS . "migrate" . self::COLOR_RESET . "                        Esegue le migrazioni pendenti.\n";
         echo "  " . self::COLOR_SUCCESS . "rollback" . self::COLOR_RESET . "                       Annulla l'ultimo batch di migrazioni.\n";
         echo "  " . self::COLOR_SUCCESS . "status" . self::COLOR_RESET . "                         Mostra lo stato delle migrazioni.\n\n";
+        echo "  " . self::COLOR_SUCCESS . "make:user" . self::COLOR_RESET . "      <nome> <email> <password>  Crea un nuovo utente.\n";
     }
     
     /**
@@ -231,6 +235,44 @@ class Artisan
         }
 
         $this->info("Cache delle viste pulita con successo. Rimossi {$count} file.");
+    }
+
+        /**
+     * Comando: Crea un nuovo utente.
+     */
+    public function makeUser(?string $name, ?string $email, ?string $password)
+    {
+        if (!$name || !$email || !$password) {
+            $this->error("Tutti i campi sono obbligatori.\n  Uso: php do.php make:user <nome> <email> <password>");
+            return;
+        }
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $this->error("L'indirizzo email non è valido.");
+            return;
+        }
+
+        try {
+            $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+
+            $this->db->insert('users', [
+                'name' => $name,
+                'email' => $email,
+                'password' => $hashedPassword,
+            ]);
+
+            $this->info("Utente '{$name}' creato con successo!");
+
+        } catch (\PDOException $e) {
+            // Controlla se l'errore è dovuto a una violazione di un vincolo UNIQUE (es. email duplicata)
+            if ($e->errorInfo[1] == 1062) {
+                $this->error("Errore: L'email '{$email}' esiste già nel database.");
+            } else {
+                $this->error("Errore del database durante la creazione dell'utente: " . $e->getMessage());
+            }
+        } catch (\Exception $e) {
+            $this->error("Errore generico: " . $e->getMessage());
+        }
     }
 
     /**

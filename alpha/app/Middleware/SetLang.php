@@ -31,19 +31,7 @@ if (!isset($segments[0]) || !in_array($segments[0], $langs, true)) {
     header("Location: {$scheme}://{$host}{$targetPath}", true, 302);
     exit;
 }
-
-// --- 5. CONTROLLO ACCESSI  ---
-if ($config['is_site'] === false) {
-    $area = $segments[1] ?? 'index'; // Se l'area non è specificata, è 'index'.
-
-    // Se l'area richiesta NON è 'admin', mostra un errore 404 ed esci.
-    if ($area !== 'admin') {
-        (new \App\Controller\ErrorController())->notFound();
-        exit;
-    }
-}
-
-// --- 6. Aggiorna il cookie della lingua ---
+// --- 5. Aggiorna il cookie della lingua ---
 $currentLangInUrl = $segments[0];
 if ($cookieLang !== $currentLangInUrl) {
     setcookie('otxlang', $currentLangInUrl, [

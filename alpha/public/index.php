@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-$GLOBALS['view_cache'] = false;
+$GLOBALS['view_cache'] = true;
 /**
  * --------------------------------------------------------------------------
  * Definisci Costanti di Base

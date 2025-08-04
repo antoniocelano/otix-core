@@ -1,8 +1,13 @@
-<?php partialAdmin('header'); ?>
+<?php partial('head'); ?>
 
-<body>
-    <h2>Testo</h2>
+<body class="d-flex align-items-center py-4 bg-body-tertiary">
+    <main class="form-signin w-100 m-auto">
+        <form action="/<?= eq(current_lang()) ?>/logout" method="get">
+            <?php csrf_field(); ?>
 
-
-    <?php partialAdmin('footer'); ?>
+            <button class="btn btn-primary w-100 py-2" type="submit">Esci</button>
+        </form>
+    </main>
 </body>
+
+<?php partial('footer'); ?>

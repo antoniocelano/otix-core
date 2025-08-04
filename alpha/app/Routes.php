@@ -5,6 +5,11 @@ use App\Controller\ErrorController;
 use App\Controller\GetFileUserController;
 use App\Controller\GetPublicFileController;
 use App\Controller\TestDbController;
+use App\Controller\AuthController;
+
+Router::get('/login', [AuthController::class, 'showLoginForm']);
+Router::post('/login', [AuthController::class, 'login']);
+Router::get('/logout', [AuthController::class, 'logout']);
 
 Router::get('/',            [SiteController::class, 'index']);
 Router::get('/index',       [SiteController::class, 'index']);

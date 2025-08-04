@@ -1,5 +1,5 @@
 <footer>
   
 </footer> 
-<script src="/public/assets/js/bootstrap.bundle.min.js">
+<script src="/public/assets/js/bootstrap.bundle.min.js"></script>
 </html>
