@@ -6,10 +6,23 @@ use App\Controller\GetFileUserController;
 use App\Controller\GetPublicFileController;
 use App\Controller\TestDbController;
 use App\Controller\AuthController;
+use App\Controller\HubController;
 
 Router::get('/login', [AuthController::class, 'showLoginForm']);
 Router::post('/login', [AuthController::class, 'login']);
 Router::get('/logout', [AuthController::class, 'logout']);
+Router::get('/register', [AuthController::class, 'showRegisterForm']);
+Router::post('/register', [AuthController::class, 'register']);
+Router::post('/register/send-otp', [AuthController::class, 'sendOtp']);
+Router::post('/password/forgot', [AuthController::class, 'forgotPassword']);
+Router::get('/password/reset/{token}', [AuthController::class, 'showResetForm']);
+Router::post('/password/reset', [AuthController::class, 'resetPassword']);
+
+Router::get('/hub', [HubController::class, 'index']);
+Router::get('/hub/login', [HubController::class, 'showLoginForm']);
+Router::post('/hub/login', [HubController::class, 'login']);
+Router::get('/hub/logout', [HubController::class, 'logout']);
+Router::get('/hub/{page}', [HubController::class, 'showPage']);
 
 Router::get('/',            [SiteController::class, 'index']);
 Router::get('/index',       [SiteController::class, 'index']);
@@ -26,6 +39,8 @@ Router::get('/static/{folder}/{subfolder}/{subsubfolder}/{file}', [GetFileUserCo
 Router::get('/public/{folder}/{file}', [GetPublicFileController::class, 'file']);
 Router::get('/public/{folder}/{subfolder}/{file}', [GetPublicFileController::class, 'file']);
 Router::get('/public/{folder}/{subfolder}/{subsubfolder}/{file}', [GetPublicFileController::class, 'file']);
+
+Router::get('/api',            [ErrorController::class, 'notFound']);
 
 Router::get('/test-db', [TestDbController::class, 'index']);
 Router::post('/test-db/insert', [TestDbController::class, 'processInsert']);

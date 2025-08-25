@@ -1,1 +1,1 @@
-otix-core v0.1.003 added Login by Middleware
+otix-core v0.1.004 added Hub access, mailer, register, otp

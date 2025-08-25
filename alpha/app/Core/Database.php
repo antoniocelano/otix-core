@@ -31,6 +31,11 @@ class Database
         $this->initConnection();
     }
 
+    public function setConnection(PDO $connection): void
+    {
+        self::$connection = $connection;
+    }
+
     /**
      * Logger semplice interno
      */

@@ -179,10 +179,31 @@ function partialAdmin($name) {
     include BASE_PATH . "/resources/views/{$theme}/admin-partials/{$name}.php";
 }
 
+function partialHub($name) {
+    $theme = THEME_DIR;
+    include BASE_PATH . "/resources/views/{$theme}/hub-partials/{$name}.php";
+}
+
 function csrf_field()
 {
     if (empty($_SESSION['csrf_token'])) {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
     }
     echo '<input type="hidden" name="csrf_token" value="' . $_SESSION['csrf_token'] . '">';
+}
+
+
+function sanitize_input($value, string $type)
+{
+    switch ($type) {
+        case 'str':
+            return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+        case 'int':
+            return filter_var($value, FILTER_SANITIZE_NUMBER_INT);
+        case 'email':
+            return filter_var($value, FILTER_SANITIZE_EMAIL);
+        default:
+            abort(400);
+            break;
+    }
 }
