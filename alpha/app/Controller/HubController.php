@@ -90,6 +90,14 @@ class HubController
         }
     }
 
+    public static function checkAuth()
+    {
+        if (!isset($_SESSION['hub_user_id'])) {
+            header('Location: /hub/login');
+            exit;
+        }
+    }
+
     /**
      * Esegue il logout dalla sezione Hub.
      */

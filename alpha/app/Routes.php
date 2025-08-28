@@ -7,6 +7,7 @@ use App\Controller\GetPublicFileController;
 use App\Controller\TestDbController;
 use App\Controller\AuthController;
 use App\Controller\HubController;
+use App\Controller\S3Controller;
 
 Router::get('/login', [AuthController::class, 'showLoginForm']);
 Router::post('/login', [AuthController::class, 'login']);
@@ -49,3 +50,7 @@ Router::post('/test-db/delete', [TestDbController::class, 'processDelete']);
 Router::post('/test-db/select', [TestDbController::class, 'processSelect']);
 Router::post('/test-db/find-last', [TestDbController::class, 'processFindLast']);
 Router::post('/test-db/raw-query', [TestDbController::class, 'processRawQuery']);
+
+Router::get('/s3/list', [S3Controller::class, 'listAllFiles']);
+Router::get('/s3/list/{path:.*}', [S3Controller::class, 'listAllFiles']);
+Router::get('/bucket/{path:.*}', [GetFileUserController::class, 's3File']);

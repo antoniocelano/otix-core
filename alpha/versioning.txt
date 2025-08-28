@@ -1,1 +1,1 @@
-otix-core v0.1.004 added Hub access, mailer, register, otp
+otix-core v0.1.005 added S3 Connection in HUB, get bucket file

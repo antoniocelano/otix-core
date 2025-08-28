@@ -13,8 +13,9 @@ $scheme = $http['scheme'];
 $host = $http['host'];
 $isSecure = ($scheme === 'https');
 
-// --- 3. Salta i redirect per i file statici ---
-if (isset($segments[0]) && in_array($segments[0], ['static', 'public'])) { 
+// --- 3. Salta i redirect per i file statici e per le rotte di sistema che non usano la lingua ---
+$allowedPaths = ['static', 'public', 'bucket'];
+if (isset($segments[0]) && in_array($segments[0], $allowedPaths)) { 
     return;
 }
 
@@ -31,6 +32,7 @@ if (!isset($segments[0]) || !in_array($segments[0], $langs, true)) {
     header("Location: {$scheme}://{$host}{$targetPath}", true, 302);
     exit;
 }
+
 // --- 5. Aggiorna il cookie della lingua ---
 $currentLangInUrl = $segments[0];
 if ($cookieLang !== $currentLangInUrl) {
