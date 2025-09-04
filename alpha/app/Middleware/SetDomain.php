@@ -1,6 +1,6 @@
 <?php
 
-$domains = require __DIR__ . '/../../sources/domains.php';
+$domains = require __DIR__ . '/../../config/Domains.php';
 
 // l'host dalla richiesta.
 $currentHost = $http['host']; 
@@ -21,7 +21,8 @@ $envFile = $domainConfig['env'];
 
 define('THEME_DIR', $theme);
 define('DOMAIN_CODE', $domainCode);
-define('USER_SOURCES_PATH', BASE_PATH . '/users/' . $domainCode . '/sources');
+define('USER_SOURCES_PATH', realpath(BASE_PATH . '/users/' . $domainCode . '/sources'));
+define('USER_ROUTES_PATH', realpath(BASE_PATH . '/users/' . $domainCode . '/routes'));
 
 function loadEnvFile($file) {
     if (!file_exists($file)) return;

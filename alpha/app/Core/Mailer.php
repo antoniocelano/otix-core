@@ -4,10 +4,9 @@ namespace App\Core;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-// Includi manualmente i file di PHPMailer poiché non è gestito da un autoloader globale.
-require_once BASE_PATH . '/public/phpmailer/Exception.php';
-require_once BASE_PATH . '/public/phpmailer/PHPMailer.php';
-require_once BASE_PATH . '/public/phpmailer/SMTP.php';
+require_once BASE_PATH . '/vendor/phpmailer/Exception.php';
+require_once BASE_PATH . '/vendor/phpmailer/PHPMailer.php';
+require_once BASE_PATH . '/vendor/phpmailer/SMTP.php';
 
 class Mailer
 {

@@ -13,13 +13,13 @@ if (strpos($path, '/hub') === 0) {
     // lo reindirizzo alla pagina di login dell'hub.
     if (!$isHubUserLoggedIn && !$isHubLoginPage) {
         header('Location: /' . current_lang() . '/hub/login');
-        exit;
+        return 0;
     }
 
     // Se l'utente è già loggato nell'hub e cerca di visitare la pagina di login,
     // lo reindirizzo alla dashboard dell'hub.
     if ($isHubUserLoggedIn && $isHubLoginPage) {
         header('Location: /' . current_lang() . '/hub');
-        exit;
+        return 0;
     }
 }

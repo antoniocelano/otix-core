@@ -2,9 +2,10 @@
 
 namespace App\Core;
 
-use App\Core\S3;
+use App\Vendor\S3\S3;
 use Exception;
 use SimpleXMLElement;
+use App\Controller\HubController;
 
 class S3Manager
 {
@@ -34,6 +35,89 @@ class S3Manager
     public function getBucketName(): string
     {
         return $this->bucket;
+    }
+
+    /**
+     * Restituisce l'istanza della classe S3.
+     * @return S3
+     */
+    public function getS3Client(): S3
+    {
+        return $this->s3Client;
+    }
+    
+    /**
+     * Copia un file da un percorso S3 a un altro.
+     *
+     * @param string $sourceKey La chiave (percorso) del file di origine su S3.
+     * @param string $destinationKey La chiave (percorso) di destinazione su S3.
+     * @return bool True se la copia ha successo.
+     */
+    public function copyFile(string $sourceKey, string $destinationKey): bool
+    {
+        try {
+            // 1. Recupera il contenuto del file di origine
+            $fileContent = $this->getFile($sourceKey);
+    
+            if ($fileContent === null) {
+                // Il file di origine non è stato trovato o c'è stato un errore
+                return false;
+            }
+    
+            // 2. Mette il contenuto nel file di destinazione
+            // Usando un resource stream per maggiore efficienza, specialmente con file grandi
+            $tempStream = fopen('php://temp', 'r+');
+            fwrite($tempStream, $fileContent);
+            rewind($tempStream);
+    
+            $response = $this->s3Client->putObject($this->bucket, $destinationKey, $tempStream, [
+                'x-amz-acl' => 'public-read' // O 'private'
+            ]);
+    
+            fclose($tempStream);
+    
+            if ($response->error) {
+                error_log("Errore S3 durante la copia: " . $response->error['message']);
+                return false;
+            }
+            
+            return true;
+        } catch (\Throwable $e) {
+            error_log("Errore interno durante la copia del file: " . $e->getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Sposta un file da un percorso S3 a un altro.
+     *
+     * @param string $sourceKey La chiave (percorso) del file di origine su S3.
+     * @param string $destinationKey La chiave (percorso) di destinazione su S3.
+     * @return bool True se lo spostamento ha successo.
+     */
+    public function moveFile(string $sourceKey, string $destinationKey): bool
+    {
+        try {
+            // 1. Copia il file di origine nella destinazione
+            $copySuccess = $this->copyFile($sourceKey, $destinationKey);
+            
+            if (!$copySuccess) {
+                return false;
+            }
+            
+            // 2. Elimina il file di origine se la copia ha avuto successo
+            $deleteSuccess = $this->deleteFile($sourceKey);
+
+            if (!$deleteSuccess) {
+                // In caso di fallimento dell'eliminazione, logga l'errore
+                error_log("Errore S3: la copia ha avuto successo ma l'eliminazione del file di origine '{$sourceKey}' è fallita.");
+            }
+            
+            return $copySuccess && $deleteSuccess;
+        } catch (\Throwable $e) {
+            error_log("Errore interno durante lo spostamento del file: " . $e->getMessage());
+            return false;
+        }
     }
 
     /**
@@ -75,6 +159,24 @@ class S3Manager
 
         fclose($fileHandle);
 
+        if ($response->error) {
+            error_log("Errore S3: " . $response->error['message']);
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Elimina un file da S3.
+     *
+     * @param string $key La chiave (percorso) del file su S3.
+     * @return bool True se l'eliminazione ha successo.
+     */
+    public function deleteFile(string $key): bool
+    {
+        $response = $this->s3Client->deleteObject($this->bucket, $key);
+        
         if ($response->error) {
             error_log("Errore S3: " . $response->error['message']);
             return false;

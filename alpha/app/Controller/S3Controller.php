@@ -3,8 +3,6 @@
 namespace App\Controller;
 
 use App\Core\S3Manager;
-use Exception;
-use SimpleXMLElement;
 
 class S3Controller
 {
@@ -68,12 +66,16 @@ class S3Controller
             }
             unset($file);
 
+            // Recupera TUTTE le cartelle del bucket
+            $allFolders = $this->getAllFolders($s3);
+
             render('s3_list', [
                 'files'           => $files,
-                'bucket'          => $s3->getBucketName(),
+                'bucket'          => config('s3_folder'),
                 'breadcrumbs'     => $breadcrumbs,
                 'current_prefix'  => $prefix,
-                'error'           => $error
+                'error'           => $error,
+                'all_folders'     => $allFolders // Passa tutte le cartelle alla vista
             ]);
 
         } catch (\Throwable $e) {
@@ -84,7 +86,324 @@ class S3Controller
             ]);
         }
     }
+
+    /**
+     * Recupera una lista di tutte le cartelle (prefissi) dal bucket.
+     * @param S3Manager $s3 L'istanza di S3Manager.
+     * @return array Un array di stringhe che rappresentano i percorsi delle cartelle.
+     */
+    private function getAllFolders(S3Manager $s3): array
+    {
+        $allFolders = [];
+        $baseS3Folder = config('s3_folder') ?? '';
+        $continuationToken = null;
+
+        do {
+            $params = [
+                'prefix' => $baseS3Folder . '/',
+                'continuation-token' => $continuationToken
+            ];
+            
+            // Chiamata all'API S3 senza il 'delimiter' per ottenere un elenco flat
+            $response = $s3->getS3Client()->getBucket($s3->getBucketName(), [], $params);
+            
+            if ($response->error) {
+                return [];
+            }
+            
+            $xml = $response->body;
+            
+            // Estrai i percorsi delle cartelle dai nomi dei file
+            foreach ($xml->Contents as $content) {
+                $key = (string) $content->Key;
+                $relativeKey = substr($key, strlen($baseS3Folder) + 1); // remove base folder
+                $pathParts = explode('/', $relativeKey);
+                
+                // Ignora i file nella radice e l'ultimo elemento (il nome del file stesso)
+                $folderPath = '';
+                for ($i = 0; $i < count($pathParts) - 1; $i++) {
+                    $folderPath .= $pathParts[$i] . '/';
+                    $allFolders[$folderPath] = true;
+                }
+            }
+
+            $continuationToken = (string) $xml->NextContinuationToken;
+            
+        } while (!empty($continuationToken));
+
+        $finalFolders = array_keys($allFolders);
+        sort($finalFolders);
+
+        return $finalFolders;
+    }
+
+    /**
+     * Carica un file nella cartella S3 corrente.
+     */
+    public function uploadFile()
+    {
+        HubController::checkAuth();
+        
+        $redirectPath = '/s3/list';
+        $currentPath = $_POST['current_path'] ?? '';
+        if ($currentPath !== '') {
+            $redirectPath .= '/' . $currentPath;
+        }
+
+        if (empty($_FILES['fileToUpload']) || $_FILES['fileToUpload']['error'] !== UPLOAD_ERR_OK) {
+            $_SESSION['upload_error'] = 'Errore nel caricamento del file.';
+            header("Location: {$redirectPath}");
+            return 0;
+        }
+
+        try {
+            $baseS3Folder = config('s3_folder');
+            $fileName = basename($_FILES['fileToUpload']['name']);
+            
+            $destinationKey = $baseS3Folder;
+            if ($currentPath !== '') {
+                $destinationKey .= '/' . $currentPath;
+            }
+            $destinationKey .= '/' . $fileName;
+
+            $s3 = new S3Manager();
+            if ($s3->putFile($destinationKey, $_FILES['fileToUpload']['tmp_name'])) {
+                $_SESSION['upload_success'] = "File '{$fileName}' caricato con successo.";
+            } else {
+                $_SESSION['upload_error'] = "Errore durante il caricamento del file su S3.";
+            }
+
+        } catch (\Throwable $e) {
+            $_SESSION['upload_error'] = 'Errore interno del server: ' . $e->getMessage();
+        }
+
+        header("Location: {$redirectPath}");
+        return 0;
+    }
+
+    /**
+     * Elimina un file da S3.
+     */
+    public function deleteFile()
+    {
+        HubController::checkAuth();
+
+        $redirectPath = '/s3/list';
+        $currentPath = $_POST['current_path'] ?? '';
+        if ($currentPath !== '') {
+            $redirectPath .= '/' . $currentPath;
+        }
+
+        if (empty($_POST['file_path'])) {
+            $_SESSION['delete_error'] = 'Percorso file non specificato.';
+            header("Location: {$redirectPath}");
+            return 0;
+        }
+
+        try {
+            $baseS3Folder = config('s3_folder');
+            $fullPath = $baseS3Folder . '/' . $_POST['file_path'];
+
+            $s3Manager = new S3Manager();
+            $s3Client = $s3Manager->getS3Client();
+            $bucketName = $s3Manager->getBucketName();
+
+            // Usa direttamente la funzione deleteObject
+            $response = $s3Client->deleteObject($bucketName, $fullPath);
+            
+            if (!$response->error) {
+                $_SESSION['delete_success'] = "File '" . basename($_POST['file_path']) . "' eliminato con successo.";
+            } else {
+                $_SESSION['delete_error'] = "Errore durante l'eliminazione del file: " . $response->error['message'];
+            }
+
+        } catch (\Throwable $e) {
+            $_SESSION['delete_error'] = 'Errore interno del server: ' . $e->getMessage();
+        }
+
+        header("Location: {$redirectPath}");
+        return 0;
+    }
+
+    public function copyFile()
+    {
+        HubController::checkAuth();
+        
+        $redirectPath = '/s3/list';
+        $currentPath = $_POST['current_path'] ?? '';
+        if ($currentPath !== '') {
+            $redirectPath .= '/' . $currentPath;
+        }
+        
+        $sourceFilePath = $_POST['source_file_path'] ?? '';
+        $destinationFolderPath = $_POST['destination_folder_path'] ?? '';
+        
+        $newFileName = $_POST['new_file_name'] ?? '';
+
+        if (empty($newFileName)) {
+            $newFileName = basename($sourceFilePath);
+        }
     
+        if (empty($sourceFilePath)) {
+            $_SESSION['copy_error'] = 'Percorso del file di origine non specificato.';
+            header("Location: {$redirectPath}");
+            return 0;
+        }
+        
+        if (empty($newFileName)) {
+            $_SESSION['copy_error'] = 'Il nome del file di destinazione non può essere vuoto.';
+            header("Location: {$redirectPath}");
+            return 0;
+        }
+
+    
+        try {
+            $baseS3Folder = config('s3_folder') ?? '';
+            
+            $sourceKey = $baseS3Folder . '/' . $sourceFilePath;
+            
+            $destinationKey = $baseS3Folder;
+            if ($destinationFolderPath !== '') {
+                $destinationKey .= '/' . $destinationFolderPath;
+            }
+            $destinationKey .= '/' . $newFileName;
+            
+            $s3Manager = new S3Manager();
+            $existingFile = $s3Manager->getFile($destinationKey);
+            if ($existingFile !== null) {
+                $_SESSION['copy_error'] = "Il file '" . $newFileName . "' esiste già nella destinazione.";
+                header("Location: {$redirectPath}");
+                return 0;
+            }
+            
+            if ($s3Manager->copyFile($sourceKey, $destinationKey)) {
+                $_SESSION['copy_success'] = "File '" . basename($sourceFilePath) . "' copiato con successo come '" . $newFileName . "' in '" . ($destinationFolderPath ?: 'radice') . "'.";
+            } else {
+                $_SESSION['copy_error'] = "Errore durante la copia del file su S3.";
+            }
+    
+        } catch (\Throwable $e) {
+            $_SESSION['copy_error'] = 'Errore interno del server: ' . $e->getMessage();
+        }
+    
+        header("Location: {$redirectPath}");
+        return 0;
+    }
+
+    public function renameFile()
+    {
+        HubController::checkAuth();
+        
+        $redirectPath = '/s3/list';
+        $currentPath = $_POST['current_path'] ?? '';
+        if ($currentPath !== '') {
+            $redirectPath .= '/' . $currentPath;
+        }
+        
+        $sourceFilePath = $_POST['source_file_path'] ?? '';
+        $newFileName = $_POST['new_file_name'] ?? '';
+
+        if (empty($sourceFilePath) || empty($newFileName)) {
+            $_SESSION['rename_error'] = 'Percorso del file di origine e nuovo nome sono obbligatori.';
+            header("Location: {$redirectPath}");
+            return 0;
+        }
+        
+        try {
+            $baseS3Folder = config('s3_folder') ?? '';
+            $sourceKey = $baseS3Folder . '/' . $sourceFilePath;
+
+            // Il percorso di destinazione è la stessa cartella, ma con il nuovo nome del file
+            $destinationFolder = dirname($sourceFilePath);
+            $destinationKey = $baseS3Folder . '/' . ($destinationFolder !== '.' ? $destinationFolder . '/' : '') . $newFileName;
+            
+            $s3Manager = new S3Manager();
+
+            // Verifica che il nuovo nome non esista già
+            if ($s3Manager->getFile($destinationKey) !== null) {
+                $_SESSION['rename_error'] = "Il file '{$newFileName}' esiste già.";
+                header("Location: {$redirectPath}");
+                return 0;
+            }
+            
+            // Se lo spostamento (copia + elimina) ha successo, la rinomina è avvenuta
+            if ($s3Manager->moveFile($sourceKey, $destinationKey)) {
+                $_SESSION['rename_success'] = "File '" . basename($sourceFilePath) . "' rinominato con successo in '{$newFileName}'.";
+            } else {
+                $_SESSION['rename_error'] = "Errore durante la rinomina del file su S3.";
+            }
+    
+        } catch (\Throwable $e) {
+            $_SESSION['rename_error'] = 'Errore interno del server: ' . $e->getMessage();
+        }
+    
+        header("Location: {$redirectPath}");
+        return 0;
+    }
+
+
+    public function moveFile()
+    {
+        HubController::checkAuth();
+        
+        $redirectPath = '/s3/list';
+        $currentPath = $_POST['current_path'] ?? '';
+        if ($currentPath !== '') {
+            $redirectPath .= '/' . $currentPath;
+        }
+        
+        $sourceFilePath = $_POST['source_file_path'] ?? '';
+        $destinationFolderPath = $_POST['destination_folder_path'] ?? '';
+        $newFileName = $_POST['new_file_name'] ?? '';
+
+        if (empty($newFileName)) {
+            $newFileName = basename($sourceFilePath);
+        }
+    
+        if (empty($sourceFilePath)) {
+            $_SESSION['move_error'] = 'Percorso del file di origine non specificato.';
+            header("Location: {$redirectPath}");
+            return 0;
+        }
+        
+        if (empty($newFileName)) {
+            $_SESSION['move_error'] = 'Il nome del file di destinazione non può essere vuoto.';
+            header("Location: {$redirectPath}");
+            return 0;
+        }
+    
+        try {
+            $baseS3Folder = config('s3_folder') ?? '';
+            
+            $sourceKey = $baseS3Folder . '/' . $sourceFilePath;
+            
+            $destinationKey = $baseS3Folder;
+            if ($destinationFolderPath !== '') {
+                $destinationKey .= '/' . $destinationFolderPath;
+            }
+            $destinationKey .= '/' . $newFileName;
+            
+            $s3Manager = new S3Manager();
+            $existingFile = $s3Manager->getFile($destinationKey);
+            if ($existingFile !== null) {
+                $_SESSION['move_error'] = "Il file '" . $newFileName . "' esiste già nella destinazione.";
+                header("Location: {$redirectPath}");
+                return 0;
+            }
+            
+            if ($s3Manager->moveFile($sourceKey, $destinationKey)) {
+                $_SESSION['move_success'] = "File '" . basename($sourceFilePath) . "' spostato con successo in '" . ($destinationFolderPath ?: 'radice') . "' come '" . $newFileName . "'.";
+            } else {
+                $_SESSION['move_error'] = "Errore durante lo spostamento del file su S3.";
+            }
+    
+        } catch (\Throwable $e) {
+            $_SESSION['move_error'] = 'Errore interno del server: ' . $e->getMessage();
+        }
+    
+        header("Location: {$redirectPath}");
+        return 0;
+    }
     /**
      * Recupera e restituisce il contenuto di un file da S3.
      * @param string $path La chiave (percorso) del file su S3.
@@ -122,7 +441,7 @@ class S3Controller
     
             header('Content-Type: ' . $mimeType);
             echo $content;
-            exit;
+            return 0;
     
         } catch (\Throwable $e) {
             http_response_code(500);

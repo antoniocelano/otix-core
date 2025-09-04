@@ -22,14 +22,14 @@ if (isset($segments[0]) && in_array($segments[0], ['static', 'public'])) {
 if (count($segments) === 1 && in_array($segments[0], $langs, true)) {
     $lang = $segments[0];
     header("Location: {$scheme}://{$host}/{$lang}/index", true, 302);
-    exit;
+    return 0;
 }
 if (!isset($segments[0]) || !in_array($segments[0], $langs, true)) {
     $langToRedirect = $cookieLang ?: $defaultLang;
     $originalPath = $path;
     $targetPath = ($originalPath === '/') ? "/{$langToRedirect}/index" : "/{$langToRedirect}" . rtrim($originalPath, '/');
     header("Location: {$scheme}://{$host}{$targetPath}", true, 302);
-    exit;
+    return 0;
 }
 
 // --- 5. CONTROLLO ACCESSI  ---
@@ -39,7 +39,7 @@ if ($config['is_site'] === false) {
     // Se l'area richiesta NON è 'admin', mostra un errore 404 ed esci.
     if ($area !== 'admin') {
         (new \App\Controller\ErrorController())->notFound();
-        exit;
+        return 0;
     }
 }
 

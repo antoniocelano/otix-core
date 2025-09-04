@@ -33,6 +33,10 @@
                     <input type="text" class="form-control" id="floatingName" placeholder="Nome" name="name" required>
                     <label for="floatingName">Nome</label>
                 </div>
+                <div class="form-floating mb-2">
+                    <input type="text" class="form-control" id="floatingSurname" placeholder="Cognome" name="surname" required>
+                    <label for="floatingSurname">Cognome</label>
+                </div>
                 <div class="form-floating">
                     <input type="password" class="form-control" id="floatingPassword" placeholder="Password" name="password" required>
                     <label for="floatingPassword">Password</label>

@@ -1,1 +1,6 @@
-otix-core v0.1.005 added S3 Connection in HUB, get bucket file
+otix-core #v0.1.006 improved security with http method e session class
+otix-core #v0.1.005 added S3 Connection in HUB, get bucket file
+otix-core #v0.1.004 added Hub access, mailer, register, otp
+otix-core #v0.1.003 added Login by Middleware
+otix-core #v0.1.002 added DO CLI, migrations, csrf_token, minifyHtml, added view cache, added db_guide
+otix-core #v0.1.001 Base Core App

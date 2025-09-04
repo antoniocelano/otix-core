@@ -30,13 +30,13 @@ class GetFileUserController
         
         if ($realFullPath === false || strpos($realFullPath, $realBasePath) !== 0) {
             http_response_code(404);
-            exit;
+            return 0;
         }
         
         $extension = strtolower(pathinfo($realFullPath, PATHINFO_EXTENSION));
         if (!array_key_exists($extension, $allowedMimeTypes)) {
             http_response_code(404);
-            exit;
+            return 0;
         }
 
         // Pulisce i buffer e invia il file con il Content-Type corretto
@@ -48,6 +48,6 @@ class GetFileUserController
         header("Content-Length: " . filesize($realFullPath));
         
         readfile($realFullPath);
-        exit;
+        return 0;
     }
 }

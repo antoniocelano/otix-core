@@ -2,6 +2,8 @@
 namespace App\Controller;
 
 use App\Core\HubDatabase;
+use App\Middleware\CheckRequest;
+use App\Core\Session; // Importa la classe Session
 
 class HubController
 {
@@ -11,9 +13,9 @@ class HubController
      */
     public function index()
     {
-        if (!isset($_SESSION['hub_user_id'])) {
+        if (!Session::has('hub_user_id')) {
             header('Location: /' . current_lang() . '/hub/login');
-            exit;
+            return 0;
         }
         render('hub/index');
     }
@@ -25,9 +27,9 @@ class HubController
     public function showPage(string $page)
     {
         // Sicurezza: controlla sempre se l'utente è loggato
-        if (!isset($_SESSION['hub_user_id'])) {
+        if (!Session::has('hub_user_id')) {
             header('Location: /' . current_lang() . '/hub/login');
-            exit;
+            return 0;
         }
 
         // Pulisce il nome della pagina per sicurezza
@@ -57,13 +59,15 @@ class HubController
      */
     public function login()
     {
-        $email = sanitize_input($_POST['email'], 'email');
-        $password = sanitize_input($_POST['password'], 'str');
+        // Utilizza la funzione helper http() per accedere ai dati POST
+        $http = http();
+        $email = sanitize_input($http['post']['email'], 'email');
+        $password = sanitize_input($http['post']['password'], 'str');
 
         if (!$email || !$password) {
-            $_SESSION['hub_error_message'] = 'Email e password sono obbligatori.';
+            Session::set('hub_error_message', 'Email e password sono obbligatori.');
             header('Location: /hub/login');
-            exit;
+            return 0;
         }
 
         try {
@@ -72,29 +76,29 @@ class HubController
 
             if (!empty($user) && password_verify($password, $user[0]['password'])) {
                 session_regenerate_id(true);
-                $_SESSION['hub_user_id'] = $user[0]['id'];
-                $_SESSION['hub_user_name'] = $user[0]['name'];
+                Session::set('hub_user_id', $user[0]['id']);
+                Session::set('hub_user_name', $user[0]['name']);
                 
-                unset($_SESSION['hub_error_message']);
+                Session::remove('hub_error_message');
                 header('Location: /hub');
-                exit;
+                return 0;
             } else {
-                $_SESSION['hub_error_message'] = 'Credenziali non valide.';
+                Session::set('hub_error_message', 'Credenziali non valide.');
                 header('Location: /hub/login');
-                exit;
+                return 0;
             }
         } catch (\PDOException $e) {
-            $_SESSION['hub_error_message'] = 'Errore del database. Riprova più tardi.';
+            Session::set('hub_error_message', 'Errore del database. Riprova più tardi.');
             header('Location: /hub/login');
-            exit;
+            return 0;
         }
     }
 
     public static function checkAuth()
     {
-        if (!isset($_SESSION['hub_user_id'])) {
+        if (!Session::has('hub_user_id')) {
             header('Location: /hub/login');
-            exit;
+            return 0;
         }
     }
 
@@ -103,9 +107,9 @@ class HubController
      */
     public function logout()
     {
-        unset($_SESSION['hub_user_id']);
-        unset($_SESSION['hub_user_name']);
+        Session::remove('hub_user_id');
+        Session::remove('hub_user_name');
         header('Location: /' . current_lang() . '/login');
-        exit;
+        return 0;
     }
 }

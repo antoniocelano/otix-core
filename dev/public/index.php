@@ -182,6 +182,6 @@ try {
      */
     // Esempio di logging: error_log($e->getMessage() . "\n" . $e->getTraceAsString());
     (new \App\Controller\ErrorController())->code('ERR001'); //
-    exit;
+    return 0;
 }
 ?>

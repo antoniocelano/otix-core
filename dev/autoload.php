@@ -96,7 +96,7 @@ function abort($code = 404) {
     } else {
         echo "Errore $code";
     }
-    exit;
+    return 0;
 }
 
 // Utility: Escaping per le view

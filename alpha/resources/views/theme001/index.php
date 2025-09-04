@@ -5,7 +5,8 @@
 
         <?php if (isset($_SESSION['user_name'])): ?>
             
-            <h1>Benvenuto, <?= eq($_SESSION['user_name']) ?>!</h1>
+            <h1>Benvenuto, <?= eq($_SESSION['user_name']) ?> <?= eq($_SESSION['user_surname']) ?>!</h1>
+            <img src="/static/images/1.png">
             <form action="/<?= eq(current_lang()) ?>/logout" method="get" class="mt-3">
                 <?php csrf_field(); ?>
                 <button class="btn btn-primary" type="submit">Logout</button>

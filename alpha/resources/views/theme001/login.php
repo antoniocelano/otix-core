@@ -2,6 +2,17 @@
 
 <body class="d-flex align-items-center py-4 bg-body-tertiary">
     <main class="form-signin w-100 m-auto container">
+
+      <?php if(isset($_SESSION['email_notfound'])) { ?>
+        <div class="alert alert-danger mt-3"><?= eq($_SESSION['email_notfound']); ?></div>
+        <?php 
+      } ?>
+
+      <?php if(isset($_SESSION['recover_ok'])) { ?>
+        <div class="alert alert-success mt-3"><?= eq($_SESSION['recover_ok']); ?></div>
+        <?php 
+      } ?>
+      
         <form action="/<?= eq(current_lang()) ?>/login" method="post">
             <?php csrf_field(); ?>
             <h1 class="h3 mb-3 fw-normal">Login</h1>

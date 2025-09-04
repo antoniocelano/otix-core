@@ -2,10 +2,10 @@
 
 declare(strict_types = 1);
 
-namespace App\Core;
+namespace App\Vendor\S3;
 
-use App\Core\S3Request;
-use App\Core\S3Response;
+use App\Vendor\S3\S3Request;
+use App\Vendor\S3\S3Response;
 
 class S3 {
 

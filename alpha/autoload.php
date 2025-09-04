@@ -1,5 +1,7 @@
 <?php
 
+use App\Middleware\CheckRequest;
+
 define('VIEW_CACHE_ENABLED', true); // cache on / off
 define('VIEW_CACHE_PATH', __DIR__ . '/storage/cache/views'); // cache folder    
 define('VIEW_CACHE_LIFETIME', 3600); // 1 hour
@@ -16,24 +18,30 @@ function dd(...$vars)
 
 
 spl_autoload_register(function(string $class) {
-    $prefix   = 'App\\';
-    $base_dir = __DIR__ . '/app/';
+    // Definisci i prefissi e i percorsi base
+    $prefixes = [
+        'App\\' => __DIR__ . '/app/',
+        'PHPMailer\\PHPMailer\\' => __DIR__ . '/vendor/phpmailer/',
+        'App\\Vendor\\' => __DIR__ . '/vendor/App/'
+    ];
 
-    $len = strlen($prefix);
-    if (strncmp($prefix, $class, $len) !== 0) {
-        return;
-    }
+    foreach ($prefixes as $prefix => $base_dir) {
+        $len = strlen($prefix);
+        if (strncmp($prefix, $class, $len) !== 0) {
+            continue;
+        }
 
-    $relative_class = substr($class, $len);
-    $file = $base_dir
-          . str_replace('\\', '/', $relative_class)
-          . '.php';
+        $relative_class = substr($class, $len);
+        $file = $base_dir
+              . str_replace('\\', '/', $relative_class)
+              . '.php';
 
-    if (file_exists($file)) {
-        require $file;
+        if (file_exists($file)) {
+            require $file;
+            return; // Esci una volta trovato il file
+        }
     }
 });
-
 /**
  *
  * @param string $path
@@ -160,7 +168,7 @@ function abort($code = 404) {
     } else {
         echo "Errore $code";
     }
-    exit;
+    return 0;
 }
 
 // eq for views
@@ -225,4 +233,21 @@ function enc_path(string $p): string {
     $p = rtrim($p, '/');
     $parts = array_filter(explode('/', $p), 'strlen');
     return implode('/', array_map('rawurlencode', $parts)) . '/';
+}
+
+function user(): ?string
+{
+    return $_SESSION['user_email'] ?? null;
+}
+
+function hubUser(): ?string
+{
+    return $_SESSION['hub_user_email'] ?? null;
+}
+
+function http()
+{
+    $checkRequest = new CheckRequest();
+    $http = $checkRequest->getHTTP();
+    return $http;
 }

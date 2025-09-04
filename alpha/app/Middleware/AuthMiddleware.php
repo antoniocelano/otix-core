@@ -1,12 +1,12 @@
 <?php
-// Middleware per verificare l'autenticazione dell'utente
+use App\Core\Session;
 
 // Estrai il percorso dall'URI per un controllo più semplice
-$path = parse_url($http['uri'], PHP_URL_PATH);
+$path = parse_url(http()['uri'], PHP_URL_PATH);
 $segments = array_values(array_filter(explode('/', $path)));
 
 // Recupera la lingua di fallback dalla configurazione utente
-$lang_segment = config('default_lang'); 
+$lang_segment = config('default_lang');
 
 // Rimuovi il segmento della lingua (es. /it, /en) se presente nell'URL
 if (isset($segments[0]) && strlen($segments[0]) == 2) {
@@ -20,7 +20,7 @@ $base_path = '/' . ($segments[0] ?? '');
 if (config('is_site') === false) {
 
     // Se l'utente NON è loggato...
-    if (!isset($_SESSION['user_id'])) {
+    if (!Session::has('user_id')) {
         // Definisci i percorsi sempre accessibili (login e risorse statiche)
         $allowed_paths = ['/login', '/static', '/public'];
 
@@ -28,7 +28,7 @@ if (config('is_site') === false) {
         // reindirizzalo alla pagina di login.
         if (!in_array($base_path, $allowed_paths)) {
             header('Location: /' . $lang_segment . '/login');
-            exit;
+            return 0;
         }
     } 
     // Se l'utente È loggato...
@@ -38,15 +38,15 @@ if (config('is_site') === false) {
         $allowed_paths_for_auth = ['/admin', '/logout', '/static', '/public'];
         if (!in_array($base_path, $allowed_paths_for_auth)) {
             header('Location: /' . $lang_segment . '/admin');
-            exit;
+            return 0;
         }
     }
 } 
 // Se il sito è abilitato (is_site === true), applica la regola standard
 else {
     // Se l'utente cerca di accedere ad /admin ma non è loggato, reindirizzalo al login
-    if ($base_path === '/admin' && !isset($_SESSION['user_id'])) {
+    if ($base_path === '/admin' && !Session::has('user_id')) {
         header('Location: /' . $lang_segment . '/login');
-        exit;
+        return 0;
     }
 }

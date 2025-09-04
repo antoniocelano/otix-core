@@ -1,5 +1,10 @@
 <?php
 declare(strict_types=1);
+
+use App\Core\Router;
+use App\Middleware\CheckRequest;
+use App\Controller\ErrorController;
+
 $GLOBALS['view_cache'] = true;
 /**
  * --------------------------------------------------------------------------
@@ -20,9 +25,6 @@ define('BASE_PATH', __DIR__ . '/..');
  * globali definite in autoload.php.
  */
 require BASE_PATH . '/autoload.php';
-
-use App\Core\Router;
-use App\Middleware\CheckRequest;
 
 try {
     /**
@@ -93,18 +95,16 @@ try {
      * Ogni middleware riceve l'array $http e può modificarlo o
      * eseguire azioni come redirect (es. SetLang).
      */
-    $middlewares = require BASE_PATH . '/app/Middleware/config.php'; //
-    foreach ($middlewares as $alias => $relativePath) {
-        if ($alias === 'CheckRequest') {
-            continue; // Già istanziato.
-        }
+    $middlewares = require BASE_PATH . '/config/MiddlewareOrder.php'; //
+    $processableMiddlewares = $middlewares;
+    unset($processableMiddlewares['CheckRequest']);
+    
+    foreach ($processableMiddlewares as $alias => $relativePath) {
         $fullPath = BASE_PATH . '/' . ltrim($relativePath, '/');
         if (!file_exists($fullPath)) {
             throw new \RuntimeException("Middleware non trovato: {$alias}");
         }
-        $result = (function() use ($fullPath, &$http) {
-            return require $fullPath;
-        })();
+        $result = require $fullPath;
         if (is_array($result)) {
             $http = array_merge($http, $result);
         }
@@ -181,7 +181,8 @@ try {
      * In produzione, l'errore dovrebbe essere loggato su file.
      */
     // Esempio di logging: error_log($e->getMessage() . "\n" . $e->getTraceAsString());
-    (new \App\Controller\ErrorController())->code('ERR001'); //
-    exit;
+    $errorController = new ErrorController();
+    $error = $errorController->code('ERR001');
+    return 0;
 }
 ?>

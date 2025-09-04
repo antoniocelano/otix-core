@@ -34,14 +34,14 @@ class GetPublicFileController
         
         if ($realFullPath === false || strpos($realFullPath, $realBasePath) !== 0) {
             http_response_code(404);
-            exit;
+            return 0;
         }
         
         // 2. Controlla che il tipo di file sia permesso
         $extension = strtolower(pathinfo($realFullPath, PATHINFO_EXTENSION));
         if (!array_key_exists($extension, $allowedMimeTypes)) {
             http_response_code(403); // Forbidden
-            exit;
+            return 0;
         }
 
         // --- Servi il file ---
@@ -53,6 +53,6 @@ class GetPublicFileController
         header("Content-Length: " . filesize($realFullPath));
         
         readfile($realFullPath);
-        exit;
+        return 0;
     }
 }

@@ -51,6 +51,17 @@ Router::post('/test-db/select', [TestDbController::class, 'processSelect']);
 Router::post('/test-db/find-last', [TestDbController::class, 'processFindLast']);
 Router::post('/test-db/raw-query', [TestDbController::class, 'processRawQuery']);
 
+Router::get('/s3', [S3Controller::class, 'listAllFiles']);
 Router::get('/s3/list', [S3Controller::class, 'listAllFiles']);
+Router::post('/s3/upload', [S3Controller::class, 'uploadFile']);
+Router::post('/s3/delete', [S3Controller::class, 'deleteFile']);
+Router::post('/s3/copy', [S3Controller::class, 'copyFile']);
+Router::post('/s3/rename', [S3Controller::class, 'renameFile']);
+Router::post('/s3/move', [S3Controller::class, 'moveFile']);
 Router::get('/s3/list/{path:.*}', [S3Controller::class, 'listAllFiles']);
 Router::get('/bucket/{path:.*}', [GetFileUserController::class, 's3File']);
+
+$userRoutesFile = USER_ROUTES_PATH . '/routes.php';
+if (file_exists($userRoutesFile)) {
+    require_once $userRoutesFile;
+}

@@ -14,5 +14,5 @@ $postToken = $http['post']['csrf_token'] ?? null;
 // hash_equals() previene attacchi di tipo "timing attack".
 if (!$sessionToken || !$postToken || !hash_equals($sessionToken, $postToken)) {
     (new \App\Controller\ErrorController())->code('ERR002'); // Errore 403 Forbidden
-    exit;
+    return 0;
 }
