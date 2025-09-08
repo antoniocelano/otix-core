@@ -11,11 +11,6 @@ class Database
     private bool $inTransaction = false;
     private array $savepoints = [];
     
-    // Configurazione logging interno
-    private bool $loggingEnabled;
-    private string $logFile;
-    private string $logLevel;
-    
     // caratteri validi per nomi tabelle/colonne
     private const VALID_IDENTIFIER_PATTERN = '/^[a-zA-Z_][a-zA-Z0-9_]*$/';
     
@@ -23,41 +18,14 @@ class Database
     private array $statementCache = [];
     private int $maxCacheSize = 100;
 
-    public function __construct(bool $enableLogging = false, string $logFile = '', string $logLevel = 'ERROR')
+    public function __construct()
     {
-        $this->loggingEnabled = $enableLogging;
-        $this->logFile = $logFile ?: sys_get_temp_dir() . '/database.log';
-        $this->logLevel = strtoupper($logLevel);
         $this->initConnection();
     }
 
     public function setConnection(PDO $connection): void
     {
         self::$connection = $connection;
-    }
-
-    /**
-     * Logger semplice interno
-     */
-    private function log(string $level, string $message, array $context = []): void
-    {
-        if (!$this->loggingEnabled) {
-            return;
-        }
-
-        $levels = ['DEBUG' => 1, 'INFO' => 2, 'WARNING' => 3, 'ERROR' => 4];
-        $currentLevel = $levels[$this->logLevel] ?? 4;
-        $messageLevel = $levels[strtoupper($level)] ?? 4;
-
-        if ($messageLevel < $currentLevel) {
-            return;
-        }
-
-        $timestamp = date('Y-m-d H:i:s');
-        $contextStr = empty($context) ? '' : ' ' . json_encode($context);
-        $logEntry = "[$timestamp] $level: $message$contextStr" . PHP_EOL;
-        
-        file_put_contents($this->logFile, $logEntry, FILE_APPEND | LOCK_EX);
     }
 
     /**
@@ -87,9 +55,7 @@ class Database
                     ]
                 );
                 
-                $this->log('INFO', 'Connessione database stabilita');
             } catch (PDOException $e) {
-                $this->log('ERROR', 'Errore connessione database', ['error' => $e->getMessage()]);
                 throw new PDOException("Errore di connessione al database: " . $e->getMessage(), (int)$e->getCode());
             }
         }
@@ -136,7 +102,6 @@ class Database
                 $this->validate($savepointName);
                 self::$connection->exec("SAVEPOINT `$savepointName`");
                 $this->savepoints[] = $savepointName;
-                $this->log('DEBUG', "Savepoint creato: $savepointName");
                 return true;
             }
 
@@ -146,11 +111,9 @@ class Database
             }
             
             $this->inTransaction = self::$connection->beginTransaction();
-            $this->log('DEBUG', 'Transazione iniziata');
             return $this->inTransaction;
             
         } catch (PDOException $e) {
-            $this->log('ERROR', 'Errore begin transaction', ['error' => $e->getMessage()]);
             throw $e;
         }
     }
@@ -167,7 +130,6 @@ class Database
                 }
                 self::$connection->exec("RELEASE SAVEPOINT `$savepointName`");
                 $this->savepoints = array_filter($this->savepoints, fn($sp) => $sp !== $savepointName);
-                $this->log('DEBUG', "Savepoint rilasciato: $savepointName");
                 return true;
             }
 
@@ -178,11 +140,9 @@ class Database
             $result = self::$connection->commit();
             $this->inTransaction = false;
             $this->savepoints = [];
-            $this->log('DEBUG', 'Transazione committata');
             return $result;
             
         } catch (PDOException $e) {
-            $this->log('ERROR', 'Errore commit', ['error' => $e->getMessage()]);
             if ($this->inTransaction) {
                 $this->rollback();
             }
@@ -201,7 +161,6 @@ class Database
                     throw new PDOException("Savepoint '$savepointName' non trovato");
                 }
                 self::$connection->exec("ROLLBACK TO SAVEPOINT `$savepointName`");
-                $this->log('DEBUG', "Rollback al savepoint: $savepointName");
                 return true;
             }
 
@@ -212,13 +171,11 @@ class Database
             $result = self::$connection->rollBack();
             $this->inTransaction = false;
             $this->savepoints = [];
-            $this->log('DEBUG', 'Transazione annullata');
             return $result;
             
         } catch (PDOException $e) {
             $this->inTransaction = false;
             $this->savepoints = [];
-            $this->log('ERROR', 'Errore rollback', ['error' => $e->getMessage()]);
             throw $e;
         }
     }
@@ -278,11 +235,9 @@ class Database
             }
 
             $result = $stmt->execute();
-            $this->log('DEBUG', "Insert eseguito", ['table' => $table, 'rows' => $stmt->rowCount()]);
             return $result;
 
         } catch (PDOException $e) {
-            $this->log('ERROR', "Errore INSERT", ['table' => $table, 'error' => $e->getMessage()]);
             throw new PDOException("Errore nell'operazione di inserimento: " . $e->getMessage(), (int)$e->getCode());
         }
     }
@@ -335,11 +290,9 @@ class Database
 
             $stmt->execute();
             $rowCount = $stmt->rowCount();
-            $this->log('DEBUG', "Update eseguito", ['table' => $table, 'rows' => $rowCount]);
             return $rowCount;
 
         } catch (PDOException $e) {
-            $this->log('ERROR', "Errore UPDATE", ['table' => $table, 'error' => $e->getMessage()]);
             throw new PDOException("Errore nell'operazione di aggiornamento: " . $e->getMessage(), (int)$e->getCode());
         }
     }
@@ -385,11 +338,9 @@ class Database
 
             $stmt->execute();
             $rowCount = $stmt->rowCount();
-            $this->log('DEBUG', "Delete eseguito", ['table' => $table, 'rows' => $rowCount]);
             return $rowCount;
 
         } catch (PDOException $e) {
-            $this->log('ERROR', "Errore DELETE", ['table' => $table, 'error' => $e->getMessage()]);
             throw new PDOException("Errore nell'operazione di eliminazione: " . $e->getMessage(), (int)$e->getCode());
         }
     }
@@ -483,11 +434,9 @@ class Database
 
             $stmt->execute();
             $results = $stmt->fetchAll();
-            $this->log('DEBUG', "Select eseguito", ['table' => $table, 'rows' => count($results)]);
             return $results;
 
         } catch (PDOException $e) {
-            $this->log('ERROR', "Errore SELECT", ['table' => $table, 'error' => $e->getMessage()]);
             throw new PDOException("Errore nell'operazione di selezione: " . $e->getMessage(), (int)$e->getCode());
         }
     }
@@ -514,7 +463,6 @@ class Database
             // Per le DDL, usiamo exec() che è più appropriato.
             if ($isDDL) {
                 self::$connection->exec($trimmedSql);
-                $this->log('DEBUG', "Query DDL eseguita", ['operation' => $operation]);
                 return []; // Ritorna un array vuoto per consistenza.
             }
 
@@ -526,7 +474,6 @@ class Database
             // Restituisce i risultati solo per le query SELECT.
             if ($operation === 'SELECT') {
                 $results = $stmt->fetchAll();
-                $this->log('DEBUG', "Query eseguita", ['operation' => $operation, 'rows' => count($results)]);
                 return $results;
             }
 
@@ -534,7 +481,6 @@ class Database
             return [];
 
         } catch (PDOException $e) {
-            $this->log('ERROR', "Errore QUERY", ['sql' => $trimmedSql, 'error' => $e->getMessage()]);
             throw new PDOException("Errore nella query SQL: " . $e->getMessage(), (int)$e->getCode());
         }
     }
@@ -590,7 +536,6 @@ class Database
     public function clearStatementCache(): void
     {
         $this->statementCache = [];
-        $this->log('DEBUG', 'Cache statement pulita');
     }
 
     /**
@@ -603,27 +548,5 @@ class Database
             'in_transaction' => $this->inTransaction,
             'active_savepoints' => count($this->savepoints)
         ];
-    }
-
-    /**
-     * Abilita o disabilita il logging
-     */
-    public function setLogging(bool $enabled, string $logFile = '', string $logLevel = 'ERROR'): void
-    {
-        $this->loggingEnabled = $enabled;
-        if (!empty($logFile)) {
-            $this->logFile = $logFile;
-        }
-        if (!empty($logLevel)) {
-            $this->logLevel = strtoupper($logLevel);
-        }
-    }
-
-    /**
-     * Ottiene il percorso del file di log corrente
-     */
-    public function getLogFile(): string
-    {
-        return $this->logFile;
     }
 }

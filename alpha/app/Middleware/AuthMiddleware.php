@@ -18,11 +18,10 @@ $base_path = '/' . ($segments[0] ?? '');
 
 // Controlla se il sito è disabilitato dalla configurazione utente (USR)
 if (config('is_site') === false) {
-
     // Se l'utente NON è loggato...
     if (!Session::has('user_id')) {
         // Definisci i percorsi sempre accessibili (login e risorse statiche)
-        $allowed_paths = ['/login', '/static', '/public'];
+        $allowed_paths = ['/login', '/static', '/public', '/hub', '/register'];
 
         // Se il percorso richiesto non è tra quelli consentiti,
         // reindirizzalo alla pagina di login.

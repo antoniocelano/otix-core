@@ -1,11 +1,6 @@
 <?php
 declare(strict_types=1);
 
-use App\Core\Router;
-use App\Middleware\CheckRequest;
-use App\Controller\ErrorController;
-
-$GLOBALS['view_cache'] = true;
 /**
  * --------------------------------------------------------------------------
  * Definisci Costanti di Base
@@ -25,6 +20,15 @@ define('BASE_PATH', __DIR__ . '/..');
  * globali definite in autoload.php.
  */
 require BASE_PATH . '/autoload.php';
+
+use App\Core\Session;
+Session::init();
+
+use App\Core\Router;
+use App\Middleware\CheckRequest;
+use App\Controller\ErrorController;
+
+$GLOBALS['view_cache'] = true;
 
 try {
     /**
@@ -49,34 +53,11 @@ try {
      * accessibile pubblicamente. Altri file .env specifici per dominio
      * verranno caricati dal middleware SetDomain.
      */
-    loadEnv(BASE_PATH . '/.env'); //
+    loadEnv(BASE_PATH . '/.env');
 
     /**
      * ----------------------------------------------------------------------
-     * 3. Configurazione della Sessione
-     * ----------------------------------------------------------------------
-     *
-     * Imposta i parametri della sessione in modo sicuro prima di avviarla.
-     * Utilizza lo schema (http/https) ottenuto da $http per impostare
-     * il cookie come 'secure'.
-     */
-    session_name('hybris');
-    $secureCookie = ($http['scheme'] === 'https');
-    session_set_cookie_params([
-        'lifetime' => $_ENV['SESSION_LIFETIME'] ?? 0,
-        'path'     => '/',
-        'secure'   => $secureCookie,
-        'httponly' => true,
-        'samesite' => 'Strict',
-    ]);
-    if (isset($_ENV['SESSION_LIFETIME'])) {
-        ini_set('session.gc_maxlifetime', (int) $_ENV['SESSION_LIFETIME']);
-    }
-    session_start();
-
-    /**
-     * ----------------------------------------------------------------------
-     * 4. Header di Sicurezza Globali
+     * 3. Header di Sicurezza Globali
      * ----------------------------------------------------------------------
      *
      * Invia alcuni header HTTP di base per migliorare la sicurezza
@@ -88,14 +69,14 @@ try {
     
     /**
      * ----------------------------------------------------------------------
-     * 5. Esecuzione dei Middleware
+     * 4. Esecuzione dei Middleware
      * ----------------------------------------------------------------------
      *
      * Esegue in sequenza i middleware definiti in config.php.
      * Ogni middleware riceve l'array $http e può modificarlo o
      * eseguire azioni come redirect (es. SetLang).
      */
-    $middlewares = require BASE_PATH . '/config/MiddlewareOrder.php'; //
+    $middlewares = require BASE_PATH . '/config/MiddlewareOrder.php';
     $processableMiddlewares = $middlewares;
     unset($processableMiddlewares['CheckRequest']);
     
@@ -112,7 +93,7 @@ try {
     
     /**
      * ----------------------------------------------------------------------
-     * 6. Gestione della Lingua per la Richiesta Corrente
+     * 5. Gestione della Lingua per la Richiesta Corrente
      * ----------------------------------------------------------------------
      *
      * Dopo che i middleware hanno agito (es. redirect di SetLang),
@@ -134,16 +115,14 @@ try {
     } else {
         $lang = $http['cookies']['otxlang'] ?? $default;
     }
-    
-    // Rende la lingua disponibile globalmente per le view e i controller
-    $GLOBALS['current_lang'] = $lang;
+    // Rende la lingua disponibile globalmente per le view e i controller    $GLOBALS['current_lang'] = $lang;
     function current_lang(): string {
         return $GLOBALS['current_lang'] ?? 'it';
     }
     
     /**
      * ----------------------------------------------------------------------
-     * 7. Dispatch del Router
+     * 6. Dispatch del Router
      * ----------------------------------------------------------------------
      *
      * Carica le rotte e le passa al Router. Il router confronta l'URI
@@ -151,13 +130,13 @@ try {
      * e il metodo appropriati.
      */
     $routes = [];
-    require BASE_PATH . '/app/Routes.php'; //
+    require BASE_PATH . '/app/Routes.php';
     $router   = new Router($routes);
     $response = $router->dispatch($http['method'], $http['uri']);
 
     /**
      * ----------------------------------------------------------------------
-     * 8. Invio della Risposta
+     * 7. Invio della Risposta
      * ----------------------------------------------------------------------
      *
      * Invia la risposta generata dal controller al browser.

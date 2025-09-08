@@ -7,7 +7,7 @@ class Session
     /**
      * Avvia la sessione se non è già attiva.
      */
-    public static function start(): void
+    public static function init(): void
     {
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
@@ -22,7 +22,7 @@ class Session
      */
     public static function set(string $key, $value): void
     {
-        self::start();
+        self::init();
         $_SESSION[$key] = $value;
     }
 
@@ -35,7 +35,7 @@ class Session
      */
     public static function get(string $key, $default = null)
     {
-        self::start();
+        self::init();
         return $_SESSION[$key] ?? $default;
     }
 
@@ -47,7 +47,7 @@ class Session
      */
     public static function has(string $key): bool
     {
-        self::start();
+        self::init();
         return isset($_SESSION[$key]);
     }
 
@@ -58,7 +58,7 @@ class Session
      */
     public static function remove($keys): void
     {
-        self::start();
+        self::init();
         foreach ((array) $keys as $key) {
             unset($_SESSION[$key]);
         }
@@ -69,7 +69,7 @@ class Session
      */
     public static function destroy(): void
     {
-        self::start();
+        self::init();
         $_SESSION = [];
         session_destroy();
     }

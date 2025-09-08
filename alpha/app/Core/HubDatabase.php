@@ -13,11 +13,8 @@ class HubDatabase extends Database
 {
     private static ?PDO $hubConnection = null;
 
-    public function __construct(bool $enableLogging = false, string $logFile = '', string $logLevel = 'ERROR')
+    public function __construct()
     {
-        // Sovrascrive il costruttore del genitore per non chiamare initConnection()
-        // ma inizializza le proprietà di logging per evitare errori.
-        parent::setLogging($enableLogging, $logFile, $logLevel);
         $this->initHubConnection();
     }
 

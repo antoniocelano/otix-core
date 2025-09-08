@@ -1,14 +1,17 @@
-<?php partial('head'); ?>
+<?php 
+use App\Core\Session;
+partial('head'); 
+?>
 
 <body class="d-flex align-items-center py-4 bg-body-tertiary">
     <main class="form-signin w-100 m-auto container">
         <h1 class="h3 mb-3 fw-normal">Registrati</h1>
         
-        <?php if (isset($_SESSION['error_message'])): ?>
-            <div class="alert alert-danger"><?= eq($_SESSION['error_message']); unset($_SESSION['error_message']); ?></div>
+        <?php if (Session::has('error_message')): ?>
+            <div class="alert alert-danger"><?= eq(Session::get('error_message')); ?></div>
         <?php endif; ?>
-        <?php if (isset($_SESSION['success_message'])): ?>
-            <div class="alert alert-success"><?= eq($_SESSION['success_message']); unset($_SESSION['success_message']); ?></div>
+        <?php if (Session::has('success_message')): ?>
+            <div class="alert alert-success"><?= eq(Session::get('success_message')); ?></div>
         <?php endif; ?>
 
         <?php if ($step === 1): ?>
@@ -32,10 +35,6 @@
                 <div class="form-floating mb-2">
                     <input type="text" class="form-control" id="floatingName" placeholder="Nome" name="name" required>
                     <label for="floatingName">Nome</label>
-                </div>
-                <div class="form-floating mb-2">
-                    <input type="text" class="form-control" id="floatingSurname" placeholder="Cognome" name="surname" required>
-                    <label for="floatingSurname">Cognome</label>
                 </div>
                 <div class="form-floating">
                     <input type="password" class="form-control" id="floatingPassword" placeholder="Password" name="password" required>

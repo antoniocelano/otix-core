@@ -5,6 +5,7 @@ use App\Core\Database;
 use App\Core\Mailer;
 use App\Core\Session;
 use App\Middleware\CheckRequest;
+use App\Core\Notify;
 
 class AuthController
 {
@@ -188,7 +189,6 @@ class AuthController
         } else {
             Session::set('error_message', 'Impossibile inviare l\'email. Riprova più tardi.');
         }
-
         header('Location: /login');
         return 0;
     }

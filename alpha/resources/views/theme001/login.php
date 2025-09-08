@@ -1,15 +1,24 @@
-<?php partial('head'); ?>
+<?php 
+use App\Core\Session;
+
+partial('head'); 
+?>
 
 <body class="d-flex align-items-center py-4 bg-body-tertiary">
     <main class="form-signin w-100 m-auto container">
 
-      <?php if(isset($_SESSION['email_notfound'])) { ?>
-        <div class="alert alert-danger mt-3"><?= eq($_SESSION['email_notfound']); ?></div>
+      <?php if(Session::has('email_notfound')) { ?>
+        <div class="alert alert-danger mt-3"><?= eq(Session::get('email_notfound')); ?></div>
         <?php 
       } ?>
 
-      <?php if(isset($_SESSION['recover_ok'])) { ?>
-        <div class="alert alert-success mt-3"><?= eq($_SESSION['recover_ok']); ?></div>
+      <?php if(Session::has('error_message')) { ?>
+        <div class="alert alert-danger mt-3"><?= eq(Session::get('error_message')); ?></div>
+        <?php 
+      } ?>
+
+      <?php if(Session::has('recover_ok')) { ?>
+        <div class="alert alert-success mt-3"><?= eq(Session::get('recover_ok')); ?></div>
         <?php 
       } ?>
       
