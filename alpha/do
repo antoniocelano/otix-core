@@ -1,67 +1,92 @@
 <?php
 
+// Definizione della costante globale BASE_PATH che punta alla directory corrente dello script.
 define('BASE_PATH', __DIR__);
 
-// Requisiti di base
+// --- Caricamento Autoloader e Dipendenze ---
+// Include il file autoloader che si occupa di caricare automaticamente le classi necessarie.
 require BASE_PATH . '/autoload.php';
+// Importa le classi per l'interazione con il database principale e il database Hub.
 use App\Core\Database;
 use App\Core\HubDatabase;
 
-// --- Caricamento Ambiente ---
+// --- Caricamento Variabili d'Ambiente ---
 try {
-    $domains = require BASE_PATH . '/sources/domains.php';
+    // Carica la configurazione dei domini da un file.
+    $domains = require BASE_PATH . '/config/Domains.php';
+    // Controlla se è stato specificato un ambiente di sviluppo nel file di configurazione.
     $selected = $domains['_selected'] ?? '';
     if ($selected && isset($domains[$selected])) {
+        // Se un ambiente di sviluppo è selezionato, carica il file .env corrispondente.
         $envFile = $domains[$selected]['env'];
         loadEnv(BASE_PATH . '/' . ltrim($envFile, '/'));
     } else {
+        // Altrimenti, carica il file .env predefinito.
         loadEnv(BASE_PATH . '/.env');
     }
 } catch (\Exception $e) {
+    // Gestisce gli errori di caricamento dell'ambiente, stampando un messaggio a colori e terminando lo script.
     echo "\n\033[31mErrore: Impossibile caricare la configurazione dell'ambiente. Assicurati che 'sources/domains.php' e i file .env siano corretti.\033[0m\n";
     exit(1);
 }
 
-
+/**
+ * Classe Artisan: uno strumento da linea di comando per gestire il framework.
+ * Fornisce comandi per la gestione delle migrazioni, la pulizia della cache e la creazione di utenti.
+ */
 class Artisan
 {
+    /** @var Database L'istanza del database. */
     private $db;
+    /** @var string Il percorso della cartella delle migrazioni. */
     private $migrationsPath;
 
-    // --- Colori per l'output ---
-    private const COLOR_SUCCESS = "\033[32m";
-    private const COLOR_WARNING = "\033[33m";
-    private const COLOR_ERROR   = "\033[31m";
-    private const COLOR_INFO    = "\033[36m";
-    private const COLOR_RESET   = "\033[0m";
+    // --- Costanti per i colori dell'output della console ---
+    private const COLOR_SUCCESS = "\033[32m"; // Verde
+    private const COLOR_WARNING = "\033[33m"; // Giallo
+    private const COLOR_ERROR   = "\033[31m"; // Rosso
+    private const COLOR_INFO    = "\033[36m"; // Ciano
+    private const COLOR_RESET   = "\033[0m";  // Reset del colore
 
+    /**
+     * Costruttore della classe. Inizializza la connessione al database e il percorso delle migrazioni.
+     */
     public function __construct()
     {
         try {
+            // Crea un'istanza della classe Database per le interazioni.
             $this->db = new Database();
+            // Imposta il percorso della cartella delle migrazioni.
             $this->migrationsPath = BASE_PATH . '/database/migrations';
+            // Crea la cartella delle migrazioni se non esiste.
             if (!is_dir($this->migrationsPath)) {
                 mkdir($this->migrationsPath, 0775, true);
             }
         } catch (\PDOException $e) {
+            // Se la connessione al database fallisce, stampa un errore e termina.
             $this->error("Errore di connessione al database: " . $e->getMessage());
             exit(1);
         }
     }
 
     /**
-     * Esegue il comando richiesto.
+     * Esegue il comando richiesto dall'utente.
+     *
+     * @param array $argv Gli argomenti passati da linea di comando.
      */
     public function run(array $argv)
     {
+        // Controlla se è stato fornito un comando.
         if (count($argv) < 2) {
             $this->showHelp();
             return;
         }
 
+        // Estrae il comando e un eventuale argomento.
         $command = $argv[1];
         $argument = $argv[2] ?? null;
 
+        // Esegue l'azione appropriata in base al comando.
         switch ($command) {
             case 'make:migration':
                 $this->makeMigration($argument);
@@ -92,7 +117,7 @@ class Artisan
     }
 
     /**
-     * Mostra l'elenco dei comandi disponibili.
+     * Mostra l'elenco dei comandi disponibili e la loro sintassi.
      */
     private function showHelp()
     {
@@ -109,6 +134,8 @@ class Artisan
     
     /**
      * Comando: Crea un nuovo file di migrazione.
+     *
+     * @param string|null $name Il nome della migrazione.
      */
     public function makeMigration(?string $name)
     {
@@ -116,18 +143,22 @@ class Artisan
             $this->error("È richiesto il nome della migrazione.\n  Uso: php do make:migration <NomeMigrazione>");
             return;
         }
+        // Valida il nome della migrazione.
         if (!preg_match('/^[a-zA-Z0-9_]+$/', $name)) {
             $this->error("Il nome della migrazione può contenere solo lettere, numeri e underscore.");
             return;
         }
 
+        // Genera il nome del file e della classe della migrazione con un timestamp.
         $timestamp = date('Y_m_d_His');
         $fileName = "{$timestamp}_{$name}.php";
         $className = 'Migration_' . $timestamp . '_' . $name;
         $filePath = $this->migrationsPath . '/' . $fileName;
 
+        // Ottiene il contenuto del "modello" (stub) per il file di migrazione.
         $stub = $this->getMigrationStub($className);
 
+        // Scrive il contenuto nel nuovo file.
         if (file_put_contents($filePath, $stub)) {
             $this->info("Migrazione creata con successo:");
             echo "  {$fileName}\n";
@@ -141,7 +172,9 @@ class Artisan
      */
     public function migrate()
     {
+        // Assicura che la tabella 'migrations' esista.
         $this->ensureMigrationsTableExists();
+        // Ottiene l'elenco dei file di migrazione che non sono stati ancora eseguiti.
         $pending = $this->getPendingMigrations();
 
         if (empty($pending)) {
@@ -149,6 +182,7 @@ class Artisan
             return;
         }
 
+        // Calcola il numero del nuovo "batch" di migrazioni.
         $batch = $this->getLastBatchNumber() + 1;
         foreach ($pending as $file) {
             $this->runUp($file, $batch);
@@ -163,6 +197,7 @@ class Artisan
     public function rollback()
     {
         $this->ensureMigrationsTableExists();
+        // Ottiene il numero dell'ultimo batch di migrazioni.
         $lastBatch = $this->getLastBatchNumber();
 
         if ($lastBatch === 0) {
@@ -170,6 +205,7 @@ class Artisan
             return;
         }
 
+        // Seleziona le migrazioni dell'ultimo batch, ordinate in modo decrescente.
         $migrationsToRollback = $this->db->select('migrations', ['batch' => $lastBatch], ['migration'], [], ['migration' => 'DESC']);
 
         if (empty($migrationsToRollback)) {
@@ -177,6 +213,7 @@ class Artisan
             return;
         }
 
+        // Esegue il metodo 'down' per ogni migrazione.
         foreach ($migrationsToRollback as $migration) {
             $this->runDown($migration['migration']);
         }
@@ -190,7 +227,9 @@ class Artisan
     public function status()
     {
         $this->ensureMigrationsTableExists();
+        // Ottiene l'elenco delle migrazioni già eseguite.
         $executed = $this->getExecutedMigrations();
+        // Ottiene l'elenco di tutti i file di migrazione.
         $allFiles = $this->getAllMigrationFiles();
 
         echo self::COLOR_WARNING . "\nStato delle Migrazioni\n-----------------------\n" . self::COLOR_RESET;
@@ -200,6 +239,7 @@ class Artisan
             return;
         }
 
+        // Itera sui file e mostra il loro stato.
         foreach ($allFiles as $file) {
             $fileName = basename($file);
             if (in_array($fileName, $executed)) {
@@ -212,11 +252,12 @@ class Artisan
     }
 
     /**
-     * Comando: Pulisci la cache delle viste.
-     * Rimuove tutti i file HTML generati.
+     * Comando: Pulisce la cache delle viste.
+     * Rimuove tutti i file HTML generati per la cache.
      */
     public function cleanCache()
     {
+        // Imposta il percorso della cache.
         $cachePath = BASE_PATH . '/storage/cache/views';
         
         if (!is_dir($cachePath)) {
@@ -224,6 +265,7 @@ class Artisan
             return;
         }
 
+        // Ottiene tutti i file .html nella cartella.
         $files = glob($cachePath . '/*.html');
         
         if (empty($files)) {
@@ -233,6 +275,7 @@ class Artisan
 
         $count = 0;
         foreach ($files as $file) {
+            // Elimina ogni file singolarmente.
             if (is_file($file)) {
                 unlink($file);
                 $count++;
@@ -242,8 +285,12 @@ class Artisan
         $this->info("Cache delle viste pulita con successo. Rimossi {$count} file.");
     }
 
-        /**
-     * Comando: Crea un nuovo utente.
+    /**
+     * Comando: Crea un nuovo utente nel database principale.
+     *
+     * @param string|null $name Il nome dell'utente.
+     * @param string|null $email L'email dell'utente.
+     * @param string|null $password La password dell'utente.
      */
     public function makeUser(?string $name, ?string $email, ?string $password)
     {
@@ -258,8 +305,10 @@ class Artisan
         }
 
         try {
+            // Hasha la password prima di salvarla.
             $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
 
+            // Inserisce i dati dell'utente nella tabella 'users'.
             $this->db->insert('users', [
                 'name' => $name,
                 'email' => $email,
@@ -269,7 +318,7 @@ class Artisan
             $this->info("Utente '{$name}' creato con successo!");
 
         } catch (\PDOException $e) {
-            // Controlla se l'errore è dovuto a una violazione di un vincolo UNIQUE (es. email duplicata)
+            // Gestisce l'errore di email duplicata.
             if ($e->errorInfo[1] == 1062) {
                 $this->error("Errore: L'email '{$email}' esiste già nel database.");
             } else {
@@ -281,7 +330,11 @@ class Artisan
     }
 
     /**
-     * Comando: Crea un nuovo utente per l'Hub.
+     * Comando: Crea un nuovo utente nel database Hub.
+     *
+     * @param string|null $name Il nome dell'utente.
+     * @param string|null $email L'email dell'utente.
+     * @param string|null $password La password dell'utente.
      */
     public function makeHubUser(?string $name, ?string $email, ?string $password)
     {
@@ -296,10 +349,12 @@ class Artisan
         }
 
         try {
+            // Crea un'istanza di HubDatabase per connettersi al database specifico.
             $hubDb = new HubDatabase();
             $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
             $now = date('Y-m-d H:i:s');
 
+            // Inserisce i dati dell'utente nella tabella 'users' del database Hub.
             $hubDb->insert('users', [
                 'name' => $name,
                 'email' => $email,
@@ -312,6 +367,7 @@ class Artisan
             $this->info("Utente HUB '{$name}' creato con successo!");
 
         } catch (\PDOException $e) {
+            // Gestisce l'errore di email duplicata nel database Hub.
             if ($e->errorInfo[1] == 1062) {
                 $this->error("Errore: L'email '{$email}' esiste già nel database HUB.");
             } else {
@@ -324,13 +380,13 @@ class Artisan
 
     /**
      * --------------------------------------------------------------------------
-     * Inzio funzioni core
+     * Funzioni Core per le Migrazioni
      * --------------------------------------------------------------------------
      */
 
-
     /**
-     * Assicura che la tabella delle migrazioni esista nel database.
+     * Assicura che la tabella delle migrazioni esista.
+     * Se non esiste, la crea.
      */
     private function ensureMigrationsTableExists()
     {
@@ -347,15 +403,22 @@ class Artisan
         }
     }
 
+    /**
+     * Esegue il metodo 'up' di una singola migrazione.
+     *
+     * @param string $file Il percorso completo del file di migrazione.
+     * @param int $batch Il numero del batch.
+     */
     private function runUp($file, $batch)
     {
         $fileName = basename($file);
         $this->write("Esecuzione in corso:", $fileName);
         
         try {
+            // Crea un'istanza della classe di migrazione.
             $migration = $this->instantiateMigration($file);
-            $migration->up();
-            $this->logMigration($fileName, $batch);
+            $migration->up(); // Chiama il metodo up().
+            $this->logMigration($fileName, $batch); // Registra la migrazione nel database.
             $this->write(self::COLOR_SUCCESS . "Eseguita" . self::COLOR_RESET . "           :", $fileName, true);
         } catch (\Exception $e) {
             $this->error("\n\n!! ERRORE DURANTE L'ESECUZIONE DI {$fileName} !!\nMessaggio: " . $e->getMessage() . "\n");
@@ -363,6 +426,11 @@ class Artisan
         }
     }
 
+    /**
+     * Esegue il metodo 'down' di una singola migrazione.
+     *
+     * @param string $fileName Il nome del file di migrazione.
+     */
     private function runDown($fileName)
     {
         $this->write("Annullamento in corso:", $fileName);
@@ -373,8 +441,8 @@ class Artisan
                 throw new \Exception("File di migrazione non trovato. Rimuovo la registrazione dal DB.");
             }
             $migration = $this->instantiateMigration($file);
-            $migration->down();
-            $this->db->delete('migrations', ['migration' => $fileName]);
+            $migration->down(); // Chiama il metodo down().
+            $this->db->delete('migrations', ['migration' => $fileName]); // Rimuove il record dal database.
             $this->write(self::COLOR_SUCCESS . "Annullata" . self::COLOR_RESET . "            :", $fileName, true);
         } catch (\Exception $e) {
             if (strpos($e->getMessage(), "File di migrazione non trovato") !== false) {
@@ -387,10 +455,18 @@ class Artisan
         }
     }
     
+    /**
+     * Include e istanzia una classe di migrazione.
+     *
+     * @param string $file Il percorso del file.
+     * @return object L'istanza della classe di migrazione.
+     * @throws \Exception Se la classe non viene trovata.
+     */
     private function instantiateMigration(string $file): object
     {
         require_once $file;
         $fileName = basename($file);
+        // Costruisce il nome della classe.
         $className = 'Migration_' . str_replace('.php', '', $fileName);
 
         if (!class_exists($className)) {
@@ -399,6 +475,12 @@ class Artisan
         return new $className();
     }
 
+    /**
+     * Genera il contenuto di base per un nuovo file di migrazione.
+     *
+     * @param string $className Il nome della classe.
+     * @return string Il codice PHP per la migrazione.
+     */
     private function getMigrationStub(string $className): string
     {
         return <<<EOT
@@ -436,47 +518,73 @@ class {$className}
 EOT;
     }
 
+    /**
+     * Ottiene l'elenco dei file di migrazione ancora da eseguire.
+     *
+     * @return array Un array di percorsi di file.
+     */
     private function getPendingMigrations(): array
     {
         $executed = $this->getExecutedMigrations();
         $allFiles = $this->getAllMigrationFiles();
+        // Filtra i file non ancora eseguiti.
         return array_filter($allFiles, fn($file) => !in_array(basename($file), $executed));
     }
 
+    /**
+     * Ottiene l'elenco dei nomi di file delle migrazioni già eseguite.
+     *
+     * @return array Un array di nomi di file.
+     */
     private function getExecutedMigrations(): array
     {
         try {
             $results = $this->db->select('migrations', [], ['migration']);
             return array_column($results, 'migration');
         } catch (\PDOException $e) {
-            // Se la tabella non esiste, non ci sono migrazioni eseguite
-            return [];
+            return []; // Se la tabella non esiste, non ci sono migrazioni eseguite.
         }
     }
 
+    /**
+     * Ottiene l'elenco completo di tutti i file di migrazione.
+     *
+     * @return array Un array di percorsi di file.
+     */
     private function getAllMigrationFiles(): array
     {
         $files = glob($this->migrationsPath . '/*.php');
-        sort($files);
+        sort($files); // Ordina i file per nome (che include il timestamp).
         return $files;
     }
 
+    /**
+     * Registra una migrazione eseguita nella tabella delle migrazioni.
+     *
+     * @param string $migration Il nome del file della migrazione.
+     * @param int $batch Il numero del batch.
+     */
     private function logMigration(string $migration, int $batch): void
     {
         $this->db->insert('migrations', ['migration' => $migration, 'batch' => $batch]);
     }
 
+    /**
+     * Ottiene il numero dell'ultimo batch di migrazioni eseguito.
+     *
+     * @return int L'ultimo numero di batch o 0 se non ci sono migrazioni.
+     */
     private function getLastBatchNumber(): int
     {
         try {
             $result = $this->db->query("SELECT MAX(batch) as max_batch FROM migrations");
             return (int)($result[0]['max_batch'] ?? 0);
         } catch (\PDOException $e) {
-            return 0;
+            return 0; // In caso di errore (es. tabella non esistente), ritorna 0.
         }
     }
 
-    // --- Funzioni per l'Output ---
+    // --- Funzioni per l'Output a Colori ---
     private function info(string $message): void    { echo self::COLOR_INFO    . $message . self::COLOR_RESET . "\n"; }
     private function error(string $message): void   { echo self::COLOR_ERROR   . $message . self::COLOR_RESET . "\n"; }
     private function warning(string $message): void { echo self::COLOR_WARNING . $message . self::COLOR_RESET . "\n"; }
@@ -486,5 +594,7 @@ EOT;
 }
 
 // --- Esecuzione ---
+// Crea un'istanza della classe Artisan.
 $artisan = new Artisan();
+// Esegue il comando passato da linea di comando.
 $artisan->run($argv);

@@ -5,13 +5,8 @@ $selectedDomain = 'localhost';
 return [
     '_selected' => $selectedDomain, // chiave speciale per override
     'localhost' => [
-        'theme' => 'theme001',
-        'usr'   => 'USR0000001',
+        'theme' => 'theme000',
+        'usr'   => 'USR0000000',
         'env'   => '.env.localhost',
-    ],
-    'dominio.it' => [
-        'theme' => 'theme002',
-        'usr'   => 'USR0000002',
-        'env'   => '.env.dominio',
     ],
 ]; 

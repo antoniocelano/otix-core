@@ -1,3 +1,4 @@
+otix-core #v0.1.1 Added docs, db docs e logs, sostiuite bootstrap with tailwind, improved env method, ready for first project!
 otix-core #v0.1.007 Added notifications, imporved sessions
 otix-core #v0.1.006 improved security with http method e session class
 otix-core #v0.1.005 added S3 Connection in HUB, get bucket file

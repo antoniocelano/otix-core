@@ -46,18 +46,7 @@ try {
 
     /**
      * ----------------------------------------------------------------------
-     * 2. Caricamento delle Variabili d'Ambiente
-     * ----------------------------------------------------------------------
-     *
-     * Carica il file .env principale. Questo file non dovrebbe essere
-     * accessibile pubblicamente. Altri file .env specifici per dominio
-     * verranno caricati dal middleware SetDomain.
-     */
-    loadEnv(BASE_PATH . '/.env');
-
-    /**
-     * ----------------------------------------------------------------------
-     * 3. Header di Sicurezza Globali
+     * 2. Header di Sicurezza Globali
      * ----------------------------------------------------------------------
      *
      * Invia alcuni header HTTP di base per migliorare la sicurezza
@@ -69,7 +58,7 @@ try {
     
     /**
      * ----------------------------------------------------------------------
-     * 4. Esecuzione dei Middleware
+     * 3. Esecuzione dei Middleware
      * ----------------------------------------------------------------------
      *
      * Esegue in sequenza i middleware definiti in config.php.
@@ -79,7 +68,6 @@ try {
     $middlewares = require BASE_PATH . '/config/MiddlewareOrder.php';
     $processableMiddlewares = $middlewares;
     unset($processableMiddlewares['CheckRequest']);
-    
     foreach ($processableMiddlewares as $alias => $relativePath) {
         $fullPath = BASE_PATH . '/' . ltrim($relativePath, '/');
         if (!file_exists($fullPath)) {
@@ -93,7 +81,7 @@ try {
     
     /**
      * ----------------------------------------------------------------------
-     * 5. Gestione della Lingua per la Richiesta Corrente
+     * 4. Gestione della Lingua per la Richiesta Corrente
      * ----------------------------------------------------------------------
      *
      * Dopo che i middleware hanno agito (es. redirect di SetLang),
@@ -122,7 +110,7 @@ try {
     
     /**
      * ----------------------------------------------------------------------
-     * 6. Dispatch del Router
+     * 5. Dispatch del Router
      * ----------------------------------------------------------------------
      *
      * Carica le rotte e le passa al Router. Il router confronta l'URI
@@ -136,7 +124,7 @@ try {
 
     /**
      * ----------------------------------------------------------------------
-     * 7. Invio della Risposta
+     * 6. Invio della Risposta
      * ----------------------------------------------------------------------
      *
      * Invia la risposta generata dal controller al browser.
@@ -160,6 +148,17 @@ try {
      * In produzione, l'errore dovrebbe essere loggato su file.
      */
     // Esempio di logging: error_log($e->getMessage() . "\n" . $e->getTraceAsString());
+    $logFile = BASE_PATH . '/storage/logs/logs.php';
+    $errorMessage = sprintf(
+        "[%s] Errore non gestito: %s in %s sulla linea %d\nStack Trace:\n%s\n",
+        date('Y-m-d H:i:s'),
+        $e->getMessage(),
+        $e->getFile(),
+        $e->getLine(),
+        $e->getTraceAsString()
+    );
+    file_put_contents($logFile, $errorMessage, FILE_APPEND);
+    
     $errorController = new ErrorController();
     $error = $errorController->code('ERR001');
     return 0;

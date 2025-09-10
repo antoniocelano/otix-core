@@ -18,29 +18,3 @@ $allowedPaths = ['static', 'public', 'bucket'];
 if (isset($segments[0]) && in_array($segments[0], $allowedPaths)) { 
     return;
 }
-
-// --- 4. Logica di reindirizzamento per la lingua ---
-if (count($segments) === 1 && in_array($segments[0], $langs, true)) {
-    $lang = $segments[0];
-    header("Location: {$scheme}://{$host}/{$lang}/index", true, 302);
-    return 0;
-}
-if (!isset($segments[0]) || !in_array($segments[0], $langs, true)) {
-    $langToRedirect = $cookieLang ?: $defaultLang;
-    $originalPath = $path;
-    $targetPath = ($originalPath === '/') ? "/{$langToRedirect}/index" : "/{$langToRedirect}" . rtrim($originalPath, '/');
-    header("Location: {$scheme}://{$host}{$targetPath}", true, 302);
-    return 0;
-}
-
-// --- 5. Aggiorna il cookie della lingua ---
-$currentLangInUrl = $segments[0];
-if ($cookieLang !== $currentLangInUrl) {
-    setcookie('otxlang', $currentLangInUrl, [
-        'expires' => time() + 30 * 24 * 3600,
-        'path' => '/',
-        'secure' => $isSecure,
-        'httponly' => true,
-        'samesite' => 'Strict',
-    ]);
-}

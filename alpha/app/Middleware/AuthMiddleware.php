@@ -12,7 +12,6 @@ $lang_segment = config('default_lang');
 if (isset($segments[0]) && strlen($segments[0]) == 2) {
     array_shift($segments);
 }
-
 // Ricostruisci il percorso base senza lingua (es. /admin, /login, /static)
 $base_path = '/' . ($segments[0] ?? '');
 
@@ -20,14 +19,14 @@ $base_path = '/' . ($segments[0] ?? '');
 if (config('is_site') === false) {
     // Se l'utente NON è loggato...
     if (!Session::has('user_id')) {
-        // Definisci i percorsi sempre accessibili (login e risorse statiche)
-        $allowed_paths = ['/login', '/static', '/public', '/hub', '/register'];
+        // Definisci i percorsi sempre accessibili (login, risorse statiche e hub)
+        $allowed_paths = ['/login', '/static', '/public', '/hub', '/register', '/s3', '/bucket'];
 
         // Se il percorso richiesto non è tra quelli consentiti,
         // reindirizzalo alla pagina di login.
         if (!in_array($base_path, $allowed_paths)) {
             header('Location: /' . $lang_segment . '/login');
-            return 0;
+            exit;
         }
     } 
     // Se l'utente È loggato...
@@ -37,7 +36,7 @@ if (config('is_site') === false) {
         $allowed_paths_for_auth = ['/admin', '/logout', '/static', '/public'];
         if (!in_array($base_path, $allowed_paths_for_auth)) {
             header('Location: /' . $lang_segment . '/admin');
-            return 0;
+            exit;
         }
     }
 } 
@@ -46,6 +45,6 @@ else {
     // Se l'utente cerca di accedere ad /admin ma non è loggato, reindirizzalo al login
     if ($base_path === '/admin' && !Session::has('user_id')) {
         header('Location: /' . $lang_segment . '/login');
-        return 0;
+        exit;
     }
 }

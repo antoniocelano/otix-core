@@ -25,12 +25,13 @@ Router::post('/hub/login', [HubController::class, 'login']);
 Router::get('/hub/logout', [HubController::class, 'logout']);
 Router::get('/hub/{page}', [HubController::class, 'showPage']);
 
-Router::get('/',            [SiteController::class, 'index']);
+Router::get('/',            [SiteController::class, 'entrypoint']);
 Router::get('/index',       [SiteController::class, 'index']);
 Router::get('/admin',       [SiteController::class, 'admin']);
 Router::get('/admin/{page}',[SiteController::class, 'admin']);
 
 Router::get('/db-guide',[SiteController::class, 'dbGuide']);
+Router::get('/docs',[SiteController::class, 'docs']);
 
 Router::get('/404',         [ErrorController::class, 'notFound']);
 Router::get('/static/{folder}/{file}', [GetFileUserController::class, 'file']);
@@ -42,14 +43,6 @@ Router::get('/public/{folder}/{subfolder}/{file}', [GetPublicFileController::cla
 Router::get('/public/{folder}/{subfolder}/{subsubfolder}/{file}', [GetPublicFileController::class, 'file']);
 
 Router::get('/api',            [ErrorController::class, 'notFound']);
-
-Router::get('/test-db', [TestDbController::class, 'index']);
-Router::post('/test-db/insert', [TestDbController::class, 'processInsert']);
-Router::post('/test-db/update', [TestDbController::class, 'processUpdate']);
-Router::post('/test-db/delete', [TestDbController::class, 'processDelete']);
-Router::post('/test-db/select', [TestDbController::class, 'processSelect']);
-Router::post('/test-db/find-last', [TestDbController::class, 'processFindLast']);
-Router::post('/test-db/raw-query', [TestDbController::class, 'processRawQuery']);
 
 Router::get('/s3', [S3Controller::class, 'listAllFiles']);
 Router::get('/s3/list', [S3Controller::class, 'listAllFiles']);

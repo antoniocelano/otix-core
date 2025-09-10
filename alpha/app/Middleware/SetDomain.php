@@ -24,19 +24,9 @@ define('DOMAIN_CODE', $domainCode);
 define('USER_SOURCES_PATH', realpath(BASE_PATH . '/users/' . $domainCode . '/sources'));
 define('USER_ROUTES_PATH', realpath(BASE_PATH . '/users/' . $domainCode . '/routes'));
 
-function loadEnvFile($file) {
-    if (!file_exists($file)) return;
-    foreach (file($file) as $line) {
-        if (preg_match('/^([A-Z0-9_]+)=(.*)$/', trim($line), $m)) {
-            putenv("{$m[1]}={$m[2]}");
-            $_ENV[$m[1]] = $m[2];
-        }
-    }
-}
-
-$envPath = __DIR__ . '/../../' . ltrim($envFile, '/');
-loadEnvFile($envPath);
-
+// Chiama la funzione globale loadEnv() definita in autoload.php
+$envPath = BASE_PATH . '/' . ltrim($envFile, '/');
+loadEnv($envPath);
 
 return [
     'domain_code' => $domainCode,
